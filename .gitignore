@@ -1,0 +1,33 @@
+# ---- Personal data --------------------------------------------------
+# Backup files hold real financial records. Never commit one, even by
+# accident, and never on a public repository.
+aturinduit-*.json
+*.backup.json
+
+
+# ---- Local tooling config -------------------------------------------
+# Machine-specific paths and permissions; nothing another clone needs.
+.claude/
+.vscode/
+.idea/
+*.code-workspace
+
+
+# ---- OS noise -------------------------------------------------------
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
+._*
+
+
+# ---- Build scratch --------------------------------------------------
+*.log
+*.tmp
+*.bak
+node_modules/
+
+
+# Note: AturinDuit.html and docs/ are build output but ARE committed on
+# purpose. docs/ is what GitHub Pages serves, and AturinDuit.html is the
+# single-file download, so both need to exist in the repository.

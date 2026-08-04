@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+  <meta name="theme-color" content="#F6F4F0">
+  <meta name="description" content="Pencatat keuangan harian yang ringan — satu file, tanpa server.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="AturinDuit">
+  <title>AturinDuit</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='6' fill='%236F8F7D'/><path d='M18.5 8.5V7A1.5 1.5 0 0 0 17 5.5H5.6A2.6 2.6 0 0 0 3 8.1v9.4A2.5 2.5 0 0 0 5.5 20h12a2 2 0 0 0 2-2v-6.5a2 2 0 0 0-2-2H5.6A2.6 2.6 0 0 1 3 7.4' fill='none' stroke='white' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <!-- ?v= is a cache buster: bump it after editing anything in assets/ so a
+       reload never serves a stale mix of old CSS with new JS. -->
+  <link rel="stylesheet" href="assets/styles.css?v=5">
+</head>
+<body>
+
+  <!-- Source order is header / content / nav so the shell works as a plain
+       flex column on phones. The desktop sidebar is placed explicitly by
+       grid-column, so this order costs nothing there. The sheet and toasts
+       live inside .app so they anchor to the visible area, never to a
+       taller layout viewport. -->
+  <div class="app">
+    <header class="topbar" id="topbar"></header>
+    <main class="view" id="view"></main>
+    <nav class="bottomnav" id="nav"></nav>
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+    <div class="toast-host" id="toasts" aria-live="polite"></div>
+  </div>
+
+  <div class="scrim" id="scrim"></div>
+
+  <script src="assets/icons.js?v=5"></script>
+  <script src="assets/utils.js?v=5"></script>
+  <script src="assets/store.js?v=5"></script>
+  <script src="assets/charts.js?v=5"></script>
+  <script src="assets/pwa.js?v=5"></script>
+  <script src="assets/ui.js?v=5"></script>
+  <script src="assets/sheets.js?v=5"></script>
+  <script src="assets/main.js?v=5"></script>
+</body>
+</html>

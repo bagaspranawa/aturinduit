@@ -1,0 +1,4619 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+  <meta name="theme-color" content="#F6F4F0">
+  <meta name="description" content="Pencatat keuangan harian yang ringan — satu file, tanpa server.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="AturinDuit">
+  <title>AturinDuit</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='6' fill='%236F8F7D'/><path d='M18.5 8.5V7A1.5 1.5 0 0 0 17 5.5H5.6A2.6 2.6 0 0 0 3 8.1v9.4A2.5 2.5 0 0 0 5.5 20h12a2 2 0 0 0 2-2v-6.5a2 2 0 0 0-2-2H5.6A2.6 2.6 0 0 1 3 7.4' fill='none' stroke='white' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <style>
+/* ============================================================
+   AturinDuit — soft, quiet, mobile-first finance tracker
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces — warm paper tones */
+  --bg:          #F6F4F0;
+  --bg-elev:     #FFFFFF;
+  --surface-2:   #F0EDE7;
+  --surface-3:   #E9E5DD;
+  --border:      #E4DFD6;
+  --border-soft: #EFEBE3;
+
+  /* Text */
+  --text:   #3D3B36;
+  --text-2: #7B776D;
+  --text-3: #A9A498;
+
+  /* Brand — muted sage */
+  --accent:      #6F8F7D;
+  --accent-deep: #5A7767;
+  --accent-soft: #E4EDE7;
+
+  /* Semantics */
+  --income:      #5F937A;
+  --income-soft: #E3EEE7;
+  --expense:     #C07E6D;
+  --expense-soft:#F6E7E2;
+  --transfer:    #7C8AA6;
+  --transfer-soft:#E7EAF1;
+  --warn:        #C2A063;
+
+  --shadow-sm: 0 1px 2px rgba(61, 59, 54, .05);
+  --shadow-md: 0 2px 10px rgba(61, 59, 54, .07);
+  --shadow-lg: 0 -6px 30px rgba(61, 59, 54, .13);
+
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 26px;
+
+  --nav-h: 62px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg:          #191917;
+  --bg-elev:     #232320;
+  --surface-2:   #2B2B27;
+  --surface-3:   #33332E;
+  --border:      #34342E;
+  --border-soft: #2C2C27;
+
+  --text:   #E8E4DA;
+  --text-2: #A39F94;
+  --text-3: #75726A;
+
+  --accent:      #85A794;
+  --accent-deep: #9BBBA8;
+  --accent-soft: #2A3630;
+
+  --income:      #7FB295;
+  --income-soft: #26332C;
+  --expense:     #D2937F;
+  --expense-soft:#372A26;
+  --transfer:    #93A0BA;
+  --transfer-soft:#272B34;
+  --warn:        #D2B074;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+  --shadow-md: 0 2px 10px rgba(0,0,0,.3);
+  --shadow-lg: 0 -6px 30px rgba(0,0,0,.45);
+}
+
+* { box-sizing: border-box; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  /* The document itself never scrolls — .view does. This stops Chrome's
+     dynamic URL bar from resizing the layout under the navigation. */
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: none; background: none; padding: 0; }
+a { color: var(--accent-deep); }
+
+.num { font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+
+/* ---------- App shell ----------
+
+   The shell is a fixed-height column: header, scrolling content, nav.
+   Nothing here is `position: fixed`, on purpose. Chrome on Android places
+   fixed elements against the *layout* viewport, which stays as tall as the
+   page would be with the URL bar collapsed — so a `bottom: 0` bar sinks
+   below the visible area on any scrollable page. Making the nav a normal
+   flex item removes that whole class of bug, and `dvh` keeps the column
+   matched to whatever is actually on screen.                              */
+
+.app {
+  position: relative;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.topbar {
+  flex: none;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  background: var(--bg);
+}
+
+.topbar__title { flex: 1; min-width: 0; }
+.topbar__title h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -.02em;
+}
+.topbar__title p {
+  margin: 1px 0 0;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.icon-btn {
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  color: var(--text-2);
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  transition: background .15s, color .15s;
+  flex: none;
+}
+.icon-btn:hover { background: var(--surface-2); color: var(--text); }
+.icon-btn.is-on { background: var(--accent-soft); color: var(--accent-deep); border-color: transparent; }
+
+/* The scroll container for every page. */
+.view {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px 26px;
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ---------- Generic building blocks ---------- */
+
+.section { margin-top: 18px; }
+.section__head {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 2px 10px;
+}
+.section__head h2 {
+  margin: 0; font-size: 13px; font-weight: 620;
+  letter-spacing: .04em; text-transform: uppercase;
+  color: var(--text-2); flex: 1;
+}
+.section__head .link {
+  font-size: 13px; color: var(--accent-deep); font-weight: 550;
+  display: inline-flex; align-items: center; gap: 3px;
+}
+
+.card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.card + .card { margin-top: 12px; }
+
+/* The dashboard stacks cards, some of them wrapped in a .span2 element for
+   the desktop layout — so the `.card + .card` rule above cannot see every
+   pair. Owning the spacing with `gap` keeps it even in both layouts. */
+.dash-grid { display: grid; gap: 12px; align-items: start; }
+.dash-grid .card { margin-top: 0; }
+.card__head {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 14px;
+}
+.card__head h3 {
+  margin: 0; font-size: 14.5px; font-weight: 620; flex: 1;
+  letter-spacing: -.01em;
+}
+.card__sub { font-size: 12px; color: var(--text-3); margin: -8px 0 12px; }
+
+.muted { color: var(--text-2); }
+.tiny  { font-size: 12px; }
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 46px; padding: 0 18px;
+  border-radius: var(--r-md);
+  font-size: 15px; font-weight: 600;
+  background: var(--surface-2); color: var(--text);
+  transition: filter .15s, background .15s;
+}
+.btn:active { filter: brightness(.96); }
+.btn--primary { background: var(--accent); color: #fff; }
+[data-theme="dark"] .btn--primary { color: #12241B; }
+.btn--soft    { background: var(--accent-soft); color: var(--accent-deep); }
+.btn--danger  { background: var(--expense-soft); color: var(--expense); }
+.btn--ghost   { background: transparent; border: 1px solid var(--border); color: var(--text-2); }
+.btn--block   { width: 100%; }
+.btn--sm      { height: 36px; padding: 0 12px; font-size: 13.5px; border-radius: 11px; }
+.btn:disabled { opacity: .45; pointer-events: none; }
+
+.btn-row { display: flex; gap: 10px; }
+.btn-row > * { flex: 1; }
+
+/* ---------- Chips ---------- */
+
+.chip-scroll {
+  display: flex; gap: 8px;
+  overflow-x: auto;
+  padding: 2px 16px 2px;
+  margin: 0 -16px;
+  scrollbar-width: none;
+}
+.chip-scroll::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 13px;
+  border-radius: 999px;
+  font-size: 13.5px; font-weight: 550;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  color: var(--text-2);
+  white-space: nowrap;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.chip.is-active {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-deep);
+}
+.chip--count {
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 9px; font-size: 11px;
+  background: var(--accent); color: #fff;
+  display: grid; place-items: center;
+}
+[data-theme="dark"] .chip--count { color: #12241B; }
+
+/* ---------- Hero balance ---------- */
+
+.hero {
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-xl);
+  padding: 18px 18px 6px;
+  box-shadow: var(--shadow-sm);
+}
+.hero__label {
+  font-size: 12.5px; color: var(--text-2);
+  display: flex; align-items: center; gap: 6px;
+}
+.hero__value {
+  font-size: 30px; font-weight: 680; letter-spacing: -.03em;
+  margin: 3px 0 2px;
+  display: flex; align-items: baseline; gap: 6px;
+}
+.hero__value small { font-size: 16px; font-weight: 600; color: var(--text-3); }
+.hero__split {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin-top: 14px;
+  border-top: 1px solid var(--border-soft);
+  padding: 12px 0 12px;
+}
+.hero__cell { display: flex; align-items: center; gap: 10px; }
+.hero__cell .bubble { width: 34px; height: 34px; flex: none; }
+.hero__cell .k { font-size: 11.5px; color: var(--text-2); }
+.hero__cell .v { font-size: 15.5px; font-weight: 640; letter-spacing: -.02em; }
+
+.bubble {
+  display: grid; place-items: center;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  flex: none;
+}
+.bubble--income   { background: var(--income-soft);  color: var(--income); }
+.bubble--expense  { background: var(--expense-soft); color: var(--expense); }
+.bubble--transfer { background: var(--transfer-soft);color: var(--transfer); }
+
+/* ---------- Quick add tiles ---------- */
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.quick-tile {
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  padding: 11px 6px 9px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  text-align: center;
+  transition: transform .12s, background .15s;
+}
+.quick-tile:active { transform: scale(.955); }
+.quick-tile__ico {
+  width: 40px; height: 40px; border-radius: 13px;
+  display: grid; place-items: center;
+}
+.quick-tile__lb {
+  font-size: 11px; line-height: 1.25; color: var(--text-2);
+  font-weight: 550;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.quick-tile--add .quick-tile__ico {
+  background: var(--surface-2); color: var(--text-3);
+  border: 1px dashed var(--border);
+}
+
+/* ---------- Transaction list ---------- */
+
+.tx-group { margin-top: 16px; }
+.tx-group__head {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 0 4px 7px;
+  font-size: 12.5px; color: var(--text-2);
+}
+.tx-group__head b { font-weight: 600; color: var(--text); }
+.tx-group__head span { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+.tx-list {
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.tx-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px;
+  width: 100%; text-align: left;
+  border-bottom: 1px solid var(--border-soft);
+  transition: background .12s;
+}
+.tx-item:last-child { border-bottom: none; }
+.tx-item:active { background: var(--surface-2); }
+.tx-item__ico { width: 38px; height: 38px; border-radius: 12px; }
+.tx-item__mid { flex: 1; min-width: 0; }
+.tx-item__t {
+  display: block;
+  font-size: 14.5px; font-weight: 560; letter-spacing: -.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tx-item__s {
+  font-size: 12px; color: var(--text-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; gap: 5px;
+}
+.tx-item__a {
+  font-size: 14.5px; font-weight: 640; letter-spacing: -.02em;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.a-in  { color: var(--income); }
+.a-out { color: var(--text); }
+.a-tf  { color: var(--transfer); }
+
+/* ---------- Backup reminder ---------- */
+
+.nag {
+  display: flex; align-items: center; gap: 11px;
+  background: var(--bg-elev);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-lg);
+  padding: 12px 13px;
+  margin-top: 14px;
+}
+.nag__ico { width: 34px; height: 34px; background: var(--surface-2); color: var(--warn); }
+.nag__mid { flex: 1; min-width: 0; }
+.nag__mid b { display: block; font-size: 13.5px; font-weight: 600; }
+.nag__mid span { display: block; font-size: 12px; color: var(--text-2); margin-top: 1px; }
+.nag__act { display: flex; align-items: center; gap: 6px; flex: none; }
+
+/* Only stack the buttons when the row genuinely cannot fit. */
+@media (max-width: 359px) {
+  .nag { flex-wrap: wrap; }
+  .nag__act { width: 100%; }
+  .nag__act .btn { flex: 1; }
+}
+
+/* ---------- Empty state ---------- */
+
+.empty {
+  text-align: center;
+  padding: 34px 20px;
+  color: var(--text-3);
+}
+.empty__ico {
+  width: 54px; height: 54px; border-radius: 18px;
+  background: var(--surface-2); color: var(--text-3);
+  display: grid; place-items: center; margin: 0 auto 12px;
+}
+.empty p { margin: 0; font-size: 13.5px; }
+.empty b { display: block; color: var(--text-2); font-size: 15px; font-weight: 600; margin-bottom: 3px; }
+
+/* ---------- Charts ---------- */
+
+.chart { width: 100%; display: block; overflow: visible; }
+.chart text { font-family: inherit; }
+
+.donut-wrap {
+  display: flex; align-items: center; gap: 14px;
+}
+.donut-wrap svg { width: 132px; height: 132px; flex: none; }
+
+.legend { flex: 1; min-width: 0; display: grid; gap: 8px; }
+/* `min-width: 0` is load-bearing: a <button> used as a grid item keeps its
+   automatic minimum size, which for buttons is the full content width — so
+   without this the row refuses to shrink and the label never ellipses. */
+.legend__row {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; min-width: 0; text-align: left;
+  font-size: 12.5px;
+}
+.legend__dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.legend__lb {
+  flex: 1; min-width: 0; color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.legend__vl { font-weight: 600; font-variant-numeric: tabular-nums; }
+.legend__pc { color: var(--text-3); width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.chart-note {
+  margin-top: 10px; font-size: 12px; color: var(--text-3);
+  text-align: center; min-height: 17px;
+}
+
+/* Ranked horizontal bars */
+.rank { display: grid; gap: 11px; }
+.rank__row { display: flex; align-items: center; gap: 11px; width: 100%; min-width: 0; text-align: left; }
+.rank__ico { width: 34px; height: 34px; border-radius: 11px; flex: none; }
+.rank__mid { flex: 1; min-width: 0; }
+.rank__top { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.rank__nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 550; }
+.rank__vl { font-weight: 620; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.rank__track {
+  display: block;
+  height: 6px; border-radius: 4px; background: var(--surface-2);
+  margin-top: 5px; overflow: hidden;
+}
+.rank__fill { display: block; height: 100%; border-radius: 4px; transition: width .3s ease; }
+.rank__pc { display: block; font-size: 11.5px; color: var(--text-3); margin-top: 3px; }
+
+/* Comparison */
+.cmp-grid { display: grid; gap: 10px; }
+.cmp-card {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  padding: 12px 13px;
+  background: var(--surface-2);
+}
+.cmp-card__k { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+.cmp-card__v { font-size: 19px; font-weight: 670; letter-spacing: -.025em; margin: 3px 0 1px; }
+.cmp-card__p { font-size: 11.5px; color: var(--text-3); }
+.delta {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11.5px; font-weight: 620;
+  padding: 2px 7px; border-radius: 999px;
+  background: var(--surface-3); color: var(--text-2);
+}
+.delta--up   { background: var(--income-soft);  color: var(--income); }
+.delta--down { background: var(--expense-soft); color: var(--expense); }
+.delta--flat { background: var(--surface-3); color: var(--text-3); }
+
+.cmp-row { display: grid; gap: 5px; padding: 9px 0; border-bottom: 1px solid var(--border-soft); }
+.cmp-row:last-child { border-bottom: none; }
+.cmp-row__h { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.cmp-row__h .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 550; }
+.cmp-bar { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-3); }
+.cmp-bar__track { display: block; flex: 1; height: 7px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.cmp-bar__fill { display: block; height: 100%; border-radius: 4px; }
+.cmp-bar__vl { width: 74px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------- Pockets ---------- */
+
+.pocket-card {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  padding: 14px;
+  width: 100%; text-align: left;
+  box-shadow: var(--shadow-sm);
+}
+.pocket-card + .pocket-card { margin-top: 10px; }
+.pocket-card__ico { width: 44px; height: 44px; border-radius: 14px; }
+.pocket-card__mid { flex: 1; min-width: 0; }
+.pocket-card__nm { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.pocket-card__sub { display: block; font-size: 12px; color: var(--text-3); }
+.pocket-card__bal { font-size: 16px; font-weight: 660; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+
+.tag {
+  font-size: 10px; font-weight: 650; letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 2px 6px; border-radius: 6px;
+  background: var(--accent-soft); color: var(--accent-deep);
+}
+
+.goal-track { display: block; height: 6px; border-radius: 4px; background: var(--surface-2); margin-top: 7px; overflow: hidden; }
+.goal-fill  { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+
+/* ---------- Settings / list rows ---------- */
+
+.rows {
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  width: 100%; text-align: left;
+  border-bottom: 1px solid var(--border-soft);
+}
+.row:last-child { border-bottom: none; }
+.row__ico { width: 34px; height: 34px; border-radius: 11px; flex: none; }
+.row__mid { flex: 1; min-width: 0; }
+.row__t { display: block; font-size: 14.5px; font-weight: 550; }
+.row__s { display: block; font-size: 12px; color: var(--text-3); }
+.row__r { color: var(--text-3); display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
+.switch {
+  width: 44px; height: 26px; border-radius: 999px;
+  background: var(--surface-3); position: relative; flex: none;
+  transition: background .18s;
+}
+.switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: var(--shadow-sm);
+  transition: transform .18s;
+}
+.switch.is-on { background: var(--accent); }
+.switch.is-on::after { transform: translateX(18px); }
+
+/* ---------- Bottom nav + FAB ---------- */
+
+.bottomnav {
+  position: relative;          /* anchors the FAB to the bar, not the viewport */
+  flex: none;
+  z-index: 45;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  height: calc(var(--nav-h) + var(--safe-b));
+  padding-bottom: var(--safe-b);
+  background: var(--bg-elev);
+  border-top: 1px solid var(--border-soft);
+}
+.navitem {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  color: var(--text-3); font-size: 10.5px; font-weight: 550;
+  height: 100%; justify-content: center;
+  transition: color .15s;
+}
+.navitem.is-active { color: var(--accent-deep); }
+.navitem--slot { visibility: hidden; }
+.navitem--brand { display: none; }
+.fab__lb { display: none; }
+
+.fab {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--safe-b) + 4px);
+  z-index: 46;
+  width: 56px; height: 56px; border-radius: 20px;
+  background: var(--accent); color: #fff;
+  display: grid; place-items: center;
+  box-shadow: 0 6px 20px rgba(111,143,125,.42);
+  transition: transform .14s;
+}
+[data-theme="dark"] .fab { color: #12241B; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+.fab:active { transform: translateX(-50%) scale(.93); }
+
+/* ---------- Sheet ---------- */
+
+/* `visibility` matters as much as `opacity` here: a backdrop-filter on a
+   fully transparent element still blurs the page behind it in Chromium,
+   so the filter is only attached once the scrim is actually open. */
+.scrim {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(38, 36, 32, .34);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .22s, visibility .22s;
+}
+.scrim.is-open {
+  opacity: 1; visibility: visible; pointer-events: auto;
+  backdrop-filter: blur(2px);
+}
+
+/* Absolute inside .app, so the footer button can never sink below the
+   visible area the way a viewport-fixed sheet can on Android. */
+.sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 61;
+  max-height: 92%;
+  display: flex; flex-direction: column;
+  background: var(--bg-elev);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(102%);
+  transition: transform .26s cubic-bezier(.32,.72,.28,1);
+  padding-bottom: var(--safe-b);
+}
+.sheet.is-open { transform: translateY(0); }
+
+.sheet__grip {
+  width: 38px; height: 4px; border-radius: 3px;
+  background: var(--surface-3);
+  margin: 9px auto 2px; flex: none;
+}
+.sheet__head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px 10px; flex: none;
+}
+.sheet__head h3 { margin: 0; font-size: 17px; font-weight: 640; flex: 1; letter-spacing: -.02em; }
+.sheet__body { overflow-y: auto; padding: 0 16px 16px; -webkit-overflow-scrolling: touch; }
+.sheet__foot {
+  padding: 12px 16px calc(12px + var(--safe-b));
+  border-top: 1px solid var(--border-soft);
+  background: var(--bg-elev);
+  flex: none;
+}
+
+/* ---------- Form controls ---------- */
+
+.field { margin-bottom: 14px; }
+.field__lb {
+  display: block; font-size: 12px; font-weight: 600;
+  color: var(--text-2); margin-bottom: 6px;
+  letter-spacing: .01em;
+}
+.input, .select, .textarea {
+  width: 100%;
+  height: 46px; padding: 0 13px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  outline: none;
+  transition: border-color .15s, background .15s;
+}
+.textarea { height: auto; padding: 11px 13px; resize: vertical; min-height: 70px; }
+.input:focus, .select:focus, .textarea:focus { border-color: var(--accent); background: var(--bg-elev); }
+.select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%),
+                    linear-gradient(135deg, var(--text-3) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 21px, calc(100% - 12px) 21px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+}
+
+.segmented {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  gap: 3px; padding: 3px;
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+}
+.segmented button {
+  height: 38px; border-radius: 11px;
+  font-size: 13.5px; font-weight: 600; color: var(--text-2);
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  transition: background .16s, color .16s;
+}
+.segmented button.is-active { background: var(--bg-elev); color: var(--text); box-shadow: var(--shadow-sm); }
+.segmented button.is-active[data-kind="expense"] { color: var(--expense); }
+.segmented button.is-active[data-kind="income"]  { color: var(--income); }
+.segmented button.is-active[data-kind="transfer"]{ color: var(--transfer); }
+
+/* ---------- Amount pad ---------- */
+
+.amount-view {
+  text-align: center;
+  padding: 4px 0 12px;
+}
+.amount-view__k { font-size: 12px; color: var(--text-2); }
+.amount-view__v {
+  font-size: 38px; font-weight: 680; letter-spacing: -.035em;
+  font-variant-numeric: tabular-nums;
+  display: flex; align-items: baseline; justify-content: center; gap: 6px;
+  min-height: 48px;
+}
+.amount-view__v small { font-size: 19px; font-weight: 600; color: var(--text-3); }
+.amount-view__v.is-zero { color: var(--text-3); }
+
+.quickamt { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.quickamt::-webkit-scrollbar { display: none; }
+.quickamt button {
+  flex: none; height: 32px; padding: 0 11px;
+  border-radius: 10px; font-size: 12.5px; font-weight: 600;
+  background: var(--surface-2); color: var(--text-2);
+}
+
+.numpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  margin-top: 12px;
+}
+.key {
+  height: 50px;
+  border-radius: 13px;
+  background: var(--surface-2);
+  font-size: 20px; font-weight: 550;
+  display: grid; place-items: center;
+  font-variant-numeric: tabular-nums;
+  transition: background .1s;
+}
+.key:active { background: var(--surface-3); }
+.key--fn { font-size: 14px; font-weight: 620; color: var(--text-2); }
+
+/* ---------- Category picker grid ---------- */
+
+.catgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+.catcell {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 10px 4px 8px;
+  border-radius: var(--r-md);
+  border: 1.5px solid transparent;
+  transition: border-color .15s, background .15s;
+}
+.catcell.is-active { border-color: var(--accent); background: var(--accent-soft); }
+.catcell__ico { width: 42px; height: 42px; border-radius: 14px; }
+.catcell__lb {
+  font-size: 10.5px; line-height: 1.25; text-align: center; color: var(--text-2);
+  font-weight: 550;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.catcell.is-active .catcell__lb { color: var(--accent-deep); }
+
+/* Icon picker */
+.icongrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 7px;
+}
+.iconcell {
+  aspect-ratio: 1;
+  display: grid; place-items: center;
+  border-radius: 13px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  border: 1.5px solid transparent;
+}
+.iconcell.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-deep); }
+
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch {
+  width: 34px; height: 34px; border-radius: 11px;
+  border: 2px solid transparent;
+  position: relative;
+}
+.swatch.is-active { border-color: var(--text); }
+.swatch.is-active::after {
+  content: ""; position: absolute; inset: 3px;
+  border-radius: 8px; border: 2px solid var(--bg-elev);
+}
+
+/* ---------- Toast ---------- */
+
+.toast-host {
+  position: absolute; left: 0; right: 0;
+  bottom: calc(var(--nav-h) + var(--safe-b) + 16px);
+  z-index: 80;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  background: var(--text); color: var(--bg);
+  padding: 10px 16px; border-radius: 999px;
+  font-size: 13.5px; font-weight: 550;
+  box-shadow: var(--shadow-md);
+  display: flex; align-items: center; gap: 7px;
+  animation: toast-in .25s cubic-bezier(.32,.72,.28,1);
+  max-width: 90vw;
+}
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px); } }
+.toast.is-out { animation: toast-out .2s forwards; }
+@keyframes toast-out { to { opacity: 0; transform: translateY(8px); } }
+
+/* ---------- Misc ---------- */
+
+.divider { height: 1px; background: var(--border-soft); margin: 14px 0; }
+.stack { display: grid; gap: 10px; }
+.inline { display: flex; align-items: center; gap: 8px; }
+.spread { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wrap-gap { display: flex; flex-wrap: wrap; gap: 8px; }
+.hidden { display: none !important; }
+
+/* Full-bleed so the sticky backdrop reaches both edges, while the chips
+   themselves keep the page's 16px gutter (hence the scoped override). */
+.filterbar {
+  position: sticky; top: 0; z-index: 30;
+  margin: 0 -16px; padding: 6px 0 10px;
+  background: linear-gradient(var(--bg) 78%, rgba(246,244,240,0));
+}
+[data-theme="dark"] .filterbar { background: linear-gradient(var(--bg) 78%, rgba(25,25,23,0)); }
+.filterbar .chip-scroll { margin: 0; padding: 2px 16px; }
+
+/* ---------- Desktop ---------- */
+
+@media (min-width: 900px) {
+  body { font-size: 15px; }
+
+  .app {
+    display: grid;
+    grid-template-columns: 246px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  .topbar {
+    grid-column: 2; grid-row: 1;
+    padding: 22px 28px 12px;
+    max-width: 100%;
+  }
+
+  .view {
+    grid-column: 2; grid-row: 2;
+    max-width: 100%;
+    padding: 0 28px 40px;
+  }
+
+  .bottomnav {
+    position: relative;
+    grid-column: 1; grid-row: 1 / span 2;
+    height: 100%;
+    display: flex; flex-direction: column;
+    align-items: stretch; justify-content: flex-start;
+    gap: 4px;
+    padding: 22px 14px;
+    border-top: none;
+    border-right: 1px solid var(--border-soft);
+    background: transparent;
+    backdrop-filter: none;
+  }
+  .navitem {
+    flex-direction: row; justify-content: flex-start;
+    gap: 11px; height: 44px; padding: 0 12px;
+    border-radius: var(--r-md);
+    font-size: 14px; font-weight: 550;
+  }
+  .navitem.is-active { background: var(--accent-soft); }
+  .navitem--slot { display: none; }
+  .fab__lb { display: inline; }
+  .navitem--brand {
+    display: flex; align-items: center; gap: 11px;
+    height: auto; padding: 0 12px 18px;
+    color: var(--text); font-size: 17px; font-weight: 680;
+    letter-spacing: -.02em; pointer-events: none;
+  }
+  .navitem--brand .brand-mark {
+    width: 30px; height: 30px; border-radius: 10px;
+    background: var(--accent); color: #fff;
+    display: grid; place-items: center;
+  }
+  [data-theme="dark"] .navitem--brand .brand-mark { color: #12241B; }
+
+  .fab {
+    position: static; transform: none;
+    width: auto; height: 44px; border-radius: var(--r-md);
+    margin-top: 12px; padding: 0 14px;
+    display: flex; align-items: center; gap: 9px;
+    font-size: 14px; font-weight: 600;
+    box-shadow: none;
+  }
+  .fab:active { transform: scale(.98); }
+
+  .toast-host { bottom: 24px; }
+
+  .dash-grid { grid-template-columns: 1fr 1fr; }
+  .dash-grid > .span2 { grid-column: 1 / -1; }
+
+  .sheet {
+    left: 50%; bottom: auto; top: 50%;
+    transform: translate(-50%, -46%) scale(.98);
+    width: min(560px, 94vw);
+    max-height: 88%;
+    border-radius: var(--r-xl);
+    opacity: 0;
+    transition: transform .2s ease, opacity .2s ease;
+  }
+  .sheet.is-open { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  .sheet__grip { display: none; }
+  .sheet__head { padding-top: 16px; }
+
+  .quick-grid { grid-template-columns: repeat(6, 1fr); }
+  .filterbar { margin: 0 -28px; }
+  .filterbar .chip-scroll { padding: 2px 28px; }
+}
+
+@media (min-width: 1100px) {
+  .quick-grid { grid-template-columns: repeat(8, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+  </style>
+</head>
+<body>
+
+  <!-- Source order is header / content / nav so the shell works as a plain
+       flex column on phones. The desktop sidebar is placed explicitly by
+       grid-column, so this order costs nothing there. The sheet and toasts
+       live inside .app so they anchor to the visible area, never to a
+       taller layout viewport. -->
+  <div class="app">
+    <header class="topbar" id="topbar"></header>
+    <main class="view" id="view"></main>
+    <nav class="bottomnav" id="nav"></nav>
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+    <div class="toast-host" id="toasts" aria-live="polite"></div>
+  </div>
+
+  <div class="scrim" id="scrim"></div>
+
+  <script>
+/* ============================================================
+   Icon set — hand-tuned 24x24 stroke icons, no dependencies.
+   Every glyph is plain inner-SVG markup so it inherits
+   currentColor and works offline from file://.
+   ============================================================ */
+
+const ICONS = {
+
+  /* ---------- interface ---------- */
+  plus:        '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  minus:       '<path d="M5 12h14"/>',
+  x:           '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  check:       '<path d="m4.5 12.5 5 5 10-11"/>',
+  'chevron-left':  '<path d="m14.5 5-7 7 7 7"/>',
+  'chevron-right': '<path d="m9.5 5 7 7-7 7"/>',
+  'chevron-down':  '<path d="m5 9 7 7 7-7"/>',
+  'chevron-up':    '<path d="m5 15 7-7 7 7"/>',
+  'arrow-up':      '<path d="M12 19V5"/><path d="m5.5 11.5 6.5-6.5 6.5 6.5"/>',
+  'arrow-down':    '<path d="M12 5v14"/><path d="m5.5 12.5 6.5 6.5 6.5-6.5"/>',
+  'arrow-up-right':   '<path d="M7 17 17 7"/><path d="M8 7h9v9"/>',
+  'arrow-down-right': '<path d="M7 7l10 10"/><path d="M17 8v9H8"/>',
+  'arrow-left-right': '<path d="m7 4-4 4 4 4"/><path d="M3 8h13"/><path d="m17 12 4 4-4 4"/><path d="M21 16H8"/>',
+  calendar:    '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18"/><path d="M8 2.5v4"/><path d="M16 2.5v4"/>',
+  filter:      '<path d="M3.5 5h17l-6.5 7.7V20l-4 1.5v-8.8z"/>',
+  search:      '<circle cx="11" cy="11" r="7"/><path d="m16.2 16.2 4.3 4.3"/>',
+  settings:    '<path d="M4 6h10"/><path d="M18 6h2"/><path d="M4 12h2"/><path d="M10 12h10"/><path d="M4 18h8"/><path d="M16 18h4"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="14" cy="18" r="2"/>',
+  trash:       '<path d="M4 6.5h16"/><path d="M9.5 6.5V4.8A1.8 1.8 0 0 1 11.3 3h1.4a1.8 1.8 0 0 1 1.8 1.8v1.7"/><path d="M6.5 6.5 7.4 19a2 2 0 0 0 2 1.9h5.2a2 2 0 0 0 2-1.9l.9-12.5"/><path d="M10.5 10.5v6"/><path d="M13.5 10.5v6"/>',
+  pencil:      '<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/><path d="m14.5 5.5 3 3"/>',
+  download:    '<path d="M12 3.5v12"/><path d="m7 11 5 4.5 5-4.5"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17"/>',
+  upload:      '<path d="M12 16V4"/><path d="m7 8.5 5-4.5 5 4.5"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17"/>',
+  refresh:     '<path d="M3.5 12a8.5 8.5 0 1 1 2.5 6"/><path d="M3 13v5h5"/>',
+  eye:         '<path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/>',
+  'eye-off':   '<path d="M4 4.5 20 20"/><path d="M9.6 9.7A2.8 2.8 0 0 0 12 14.8c.8 0 1.5-.3 2-.8"/><path d="M6.4 6.7C3.8 8.3 2 12 2 12s3.8 6.5 10 6.5c1.7 0 3.2-.5 4.5-1.2"/><path d="M19.3 15.4C21.2 13.8 22 12 22 12s-3.8-6.5-10-6.5c-1 0-1.9.1-2.7.4"/>',
+  sun:         '<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5"/><path d="M12 19.5V22"/><path d="M2 12h2.5"/><path d="M19.5 12H22"/><path d="m4.9 4.9 1.8 1.8"/><path d="m17.3 17.3 1.8 1.8"/><path d="m19.1 4.9-1.8 1.8"/><path d="m6.7 17.3-1.8 1.8"/>',
+  moon:        '<path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>',
+  monitor:     '<rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8.5 21h7"/><path d="M12 17v4"/>',
+  dashboard:   '<rect x="3" y="3" width="7.5" height="8.5" rx="1.8"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="1.8"/><rect x="3" y="14.5" width="7.5" height="6.5" rx="1.8"/><rect x="13.5" y="11.5" width="7.5" height="9.5" rx="1.8"/>',
+  list:        '<path d="M8.5 6.5h12"/><path d="M8.5 12h12"/><path d="M8.5 17.5h12"/><circle cx="4" cy="6.5" r="1.3"/><circle cx="4" cy="12" r="1.3"/><circle cx="4" cy="17.5" r="1.3"/>',
+  layers:      '<path d="m12 2.5 9 4.7-9 4.7-9-4.7z"/><path d="m3 12.2 9 4.7 9-4.7"/><path d="m3 16.8 9 4.7 9-4.7"/>',
+  backspace:   '<path d="M20 4.5H9.6a2 2 0 0 0-1.5.7L2.8 12l5.3 6.8a2 2 0 0 0 1.5.7H20a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5z"/><path d="m12 9.5 5 5"/><path d="m17 9.5-5 5"/>',
+  star:        '<path d="m12 3 2.7 5.8 6.3.8-4.6 4.4 1.2 6.3L12 17.3 6.4 20.3l1.2-6.3L3 9.6l6.3-.8z"/>',
+  info:        '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><path d="M12 7.6h.01"/>',
+  alert:       '<path d="M10.3 3.9 2.6 17.2A2 2 0 0 0 4.3 20.2h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 16.6h.01"/>',
+  clock:       '<circle cx="12" cy="12" r="9"/><path d="M12 7v5.3l3.3 2"/>',
+  target:      '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/>',
+  save:        '<path d="M5 3.5h11l5 5V19a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 4 19V5a1.5 1.5 0 0 1 1-1.5z"/><path d="M8 3.5v6h7v-6"/><path d="M8 20.5v-6h8v6"/>',
+  folder:      '<path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  drag:        '<circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/>',
+  archive:     '<rect x="2.5" y="3.5" width="19" height="5" rx="1.5"/><path d="M4.5 8.5V19a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5V8.5"/><path d="M10 12.5h4"/>',
+
+  /* ---------- charts ---------- */
+  'trending-up':   '<path d="m3 17 6.5-6.5 4 4L21 7"/><path d="M15 7h6v6"/>',
+  'trending-down': '<path d="m3 7 6.5 6.5 4-4L21 17"/><path d="M15 17h6v-6"/>',
+  'chart-pie':     '<path d="M11 3.05A9 9 0 1 0 20.95 13H11z"/><path d="M14 2.5A8.5 8.5 0 0 1 21.5 10H14z"/>',
+  'chart-bar':     '<path d="M3 20.5h18"/><rect x="4.5" y="10" width="4" height="7.5" rx="1.2"/><rect x="10" y="5" width="4" height="12.5" rx="1.2"/><rect x="15.5" y="13" width="4" height="4.5" rx="1.2"/>',
+  'chart-line':    '<path d="M3.5 3.5v17h17"/><path d="m7 15.5 3.5-4.5 3 2.5 5-7"/>',
+  scale:           '<path d="M12 3v18"/><path d="M7 21h10"/><path d="M12 6.5 4 8.5"/><path d="m12 6.5 8 2"/><path d="M4 8.5 1.5 15a3 3 0 0 0 5 0z"/><path d="M20 8.5 17.5 15a3 3 0 0 0 5 0z"/>',
+
+  /* ---------- money / pockets ---------- */
+  wallet:      '<path d="M19.5 7.5V6A1.5 1.5 0 0 0 18 4.5H5.2A2.7 2.7 0 0 0 2.5 7.2V18a2.5 2.5 0 0 0 2.5 2.5h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2H5.2a2.7 2.7 0 0 1-2.7-2.7"/><circle cx="16.8" cy="14" r="1.2"/>',
+  banknote:    '<rect x="2" y="6" width="20" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 10v4"/><path d="M18 10v4"/>',
+  coins:       '<ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v5c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6"/><path d="M4.5 11v5c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-5"/>',
+  'piggy-bank':'<path d="M16.5 8.6c2 1 3.5 2.7 3.5 4.7 0 1.3-.6 2.5-1.5 3.4V19a1.5 1.5 0 0 1-3 0v-.7a10 10 0 0 1-5 0V19a1.5 1.5 0 0 1-3 0v-2.6A5.6 5.6 0 0 1 6 13.2H4.5a1.5 1.5 0 0 1 0-3H6a5.8 5.8 0 0 1 5.5-4.2h2.2"/><path d="M13.5 6c0-1.4-1.1-2.5-2.5-2.5"/><circle cx="16" cy="11.9" r=".9"/><path d="M20 11.7h1.5"/>',
+  landmark:    '<path d="M2.5 9.5 12 3.5l9.5 6z"/><path d="M4.5 10v8"/><path d="M9.5 10v8"/><path d="M14.5 10v8"/><path d="M19.5 10v8"/><path d="M2.5 20.5h19"/>',
+  'credit-card':'<rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/><path d="M6 14.8h4"/>',
+  briefcase:   '<rect x="2.5" y="7" width="19" height="13" rx="2.2"/><path d="M8.5 7V5.2A2 2 0 0 1 10.5 3.2h3a2 2 0 0 1 2 2V7"/><path d="M2.5 12.5h19"/><path d="M10.5 12.5v2h3v-2"/>',
+  safe:        '<rect x="2.5" y="4" width="19" height="16" rx="2.5"/><circle cx="10.5" cy="12" r="3.5"/><path d="M10.5 8.5v-1"/><path d="M17 9.5v5"/><path d="M6 20v1.5"/><path d="M18 20v1.5"/>',
+
+  /* ---------- food & drink ---------- */
+  utensils:    '<path d="M5 3v4.5a2.5 2.5 0 0 0 5 0V3"/><path d="M7.5 10V21"/><ellipse cx="16.8" cy="6.6" rx="2.7" ry="3.6"/><path d="M16.8 10.2V21"/>',
+  coffee:      '<path d="M4 8.5h13V14a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 10h1.6a2.4 2.4 0 0 1 0 4.8H17"/><path d="M7.5 2.5v3"/><path d="M11 2.5v3"/><path d="M14.5 2.5v3"/>',
+  'cup-soda':  '<path d="M6.2 8h11.6l-1.2 12.2a2 2 0 0 1-2 1.8H9.4a2 2 0 0 1-2-1.8z"/><path d="m9.3 8 .9-5.5h3.6L14.7 8"/><path d="M7 13.5h10"/>',
+  cake:        '<path d="M4 13.2a2.4 2.4 0 0 1 4 0 2.4 2.4 0 0 0 4 0 2.4 2.4 0 0 1 4 0 2.4 2.4 0 0 0 4 0V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M12 5v3.5"/><circle cx="12" cy="3.4" r="1.1"/><path d="M7.5 6.5v2"/><path d="M16.5 6.5v2"/>',
+
+  /* ---------- shopping ---------- */
+  'shopping-bag':  '<path d="M5 7h14l1 12.8a2 2 0 0 1-2 2.2H6a2 2 0 0 1-2-2.2z"/><path d="M9 10.5V6a3 3 0 0 1 6 0v4.5"/>',
+  'shopping-cart': '<path d="M2 3h2.6l2.2 10.6a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 2-1.6L20.5 7H6.2"/><circle cx="9.5" cy="19.4" r="1.6"/><circle cx="17" cy="19.4" r="1.6"/>',
+  package:     '<path d="m12 2.5 9 4.5v10l-9 4.5-9-4.5V7z"/><path d="m3 7 9 4.5L21 7"/><path d="M12 11.5v10"/><path d="m7.5 4.7 9 4.5"/>',
+  tag:         '<path d="M20.6 11.6 12.4 3.4A2 2 0 0 0 11 2.8H4.6a1.8 1.8 0 0 0-1.8 1.8V11c0 .5.2 1 .6 1.4l8.2 8.2a2 2 0 0 0 2.8 0l6.2-6.2a2 2 0 0 0 0-2.8z"/><circle cx="7.6" cy="7.6" r="1.3"/>',
+  gift:        '<rect x="2.8" y="8" width="18.4" height="4.2" rx="1.2"/><path d="M4.8 12.2V19a2 2 0 0 0 2 2h10.4a2 2 0 0 0 2-2v-6.8"/><path d="M12 8v13"/><path d="M12 8S10.6 3 8.2 3a2.5 2.5 0 0 0 0 5z"/><path d="M12 8s1.4-5 3.8-5a2.5 2.5 0 0 1 0 5z"/>',
+  ticket:      '<path d="M3 8.6V6.4A1.4 1.4 0 0 1 4.4 5h15.2A1.4 1.4 0 0 1 21 6.4v2.2a3.4 3.4 0 0 0 0 6.8v2.2a1.4 1.4 0 0 1-1.4 1.4H4.4A1.4 1.4 0 0 1 3 17.6v-2.2a3.4 3.4 0 0 0 0-6.8z"/><path d="M9.5 5v14" stroke-dasharray="2 2.6"/>',
+
+  /* ---------- transport ---------- */
+  car:         '<path d="M5 17H3.6A1.6 1.6 0 0 1 2 15.4V12a2 2 0 0 1 1.3-1.9l2.2-.8 1.8-3.6a2 2 0 0 1 1.8-1.1h5.8a2 2 0 0 1 1.8 1.1l1.8 3.6 2.2.8A2 2 0 0 1 22 12v3.4a1.6 1.6 0 0 1-1.6 1.6H19"/><path d="M5.5 9.3h13"/><circle cx="7.4" cy="17" r="2"/><circle cx="16.6" cy="17" r="2"/><path d="M9.4 17h5.2"/>',
+  bike:        '<circle cx="5.6" cy="17.2" r="3.4"/><circle cx="18.4" cy="17.2" r="3.4"/><path d="m5.6 17.2 4-9.2h4.6l4.2 9.2"/><path d="M9.6 8h6"/><path d="M12.5 8V5h3"/>',
+  bus:         '<rect x="3" y="3" width="18" height="14" rx="2.5"/><path d="M3 10.5h18"/><path d="M7 14h.01"/><path d="M17 14h.01"/><path d="M6.5 17v2.5"/><path d="M17.5 17v2.5"/>',
+  plane:       '<path d="M10.5 2.6a1.5 1.5 0 0 1 3 0V8l8.2 4.6v2.6L13.5 13v4.4l2.5 2v2l-4-1.2L8 21.4v-2l2.5-2V13L2.3 15.2v-2.6L10.5 8z"/>',
+  truck:       '<rect x="1.5" y="6" width="12" height="10" rx="1.6"/><path d="M13.5 9.5h3.9l3.1 3.6V16h-7z"/><circle cx="6" cy="18" r="2"/><circle cx="17.4" cy="18" r="2"/><path d="M8 18h7.4"/>',
+  fuel:        '<path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M2.8 21h12.4"/><path d="M4.5 10h9"/><path d="M14 8h2.6a1.4 1.4 0 0 1 1.4 1.4V16a2 2 0 0 0 4 0V9.2l-2.6-3"/>',
+  parking:     '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9.6 17.2V7.4h3.2a2.9 2.9 0 0 1 0 5.8H9.6"/>',
+  wrench:      '<path d="M15.6 3a5.5 5.5 0 0 0-5 7.7l-7 6.9a2 2 0 0 0 2.8 2.8l6.9-7A5.5 5.5 0 0 0 20.6 6.4l-3 3-2.9-2.9 3-3A5.6 5.6 0 0 0 15.6 3z"/>',
+
+  /* ---------- home & bills ---------- */
+  home:        '<path d="M3 10.5 12 3l9 7.5"/><path d="M5.2 9.8V19a2 2 0 0 0 2 2h9.6a2 2 0 0 0 2-2V9.8"/><path d="M9.6 21v-5.8h4.8V21"/>',
+  building:    '<rect x="4" y="2.5" width="16" height="18.5" rx="2.2"/><path d="M9 7h1.6"/><path d="M13.4 7H15"/><path d="M9 11h1.6"/><path d="M13.4 11H15"/><path d="M9 15h1.6"/><path d="M13.4 15H15"/><path d="M10 21v-2.6h4V21"/>',
+  key:         '<circle cx="7.4" cy="16.6" r="3.6"/><path d="m10 14 9.6-9.6"/><path d="m16.8 7.2 2.6 2.6"/><path d="m14.2 9.8 2.6 2.6"/>',
+  bed:         '<path d="M2.5 20.5V6.5"/><path d="M2.5 12h17a2.5 2.5 0 0 1 2.5 2.5v6"/><path d="M2.5 16.6h19"/><circle cx="7" cy="9.4" r="2"/><path d="M10.4 12V9.6A1.6 1.6 0 0 1 12 8h5.5a1.6 1.6 0 0 1 1.6 1.6V12"/>',
+  zap:         '<path d="M13.2 2.5 4 14h7l-1.2 7.5L20 10h-7z"/>',
+  droplet:     '<path d="M12 2.7c3 3.7 6 6.9 6 10.3a6 6 0 0 1-12 0c0-3.4 3-6.6 6-10.3z"/>',
+  flame:       '<path d="M12 22a7 7 0 0 0 7-7c0-4-3-6.4-4.2-9.4-1.4 1-1.9 2.5-1.8 4C11.8 7.8 11.2 5.2 11.8 2 8.6 4.3 5 8.4 5 15a7 7 0 0 0 7 7z"/>',
+  wifi:        '<path d="M2.6 9.2a15 15 0 0 1 18.8 0"/><path d="M5.6 12.7a10.5 10.5 0 0 1 12.8 0"/><path d="M8.6 16.2a6 6 0 0 1 6.8 0"/><circle cx="12" cy="19.7" r="1.1"/>',
+  smartphone:  '<rect x="6" y="2" width="12" height="20" rx="2.6"/><path d="M10.4 18.4h3.2"/>',
+  laptop:      '<rect x="4" y="4.2" width="16" height="11" rx="1.8"/><path d="M2 18.8h20"/>',
+  receipt:     '<path d="M5 2.4v19.2l2.5-1.5L10 21.6l2-1.5 2 1.5 2.5-1.5 2.5 1.5V2.4L16.5 3.9 14 2.4l-2 1.5-2-1.5L7.5 3.9z"/><path d="M8.5 8h7"/><path d="M8.5 11.8h7"/><path d="M8.5 15.6h4.5"/>',
+  shield:      '<path d="M12 21.6s7.8-3.4 7.8-9.3V5.6L12 2.9 4.2 5.6v6.7c0 5.9 7.8 9.3 7.8 9.3z"/><path d="m9 12 2.2 2.2L15.2 10"/>',
+  newspaper:   '<path d="M4 5.6A1.6 1.6 0 0 1 5.6 4h10.8A1.6 1.6 0 0 1 18 5.6V18a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z"/><path d="M18 8.2h1.4A1.6 1.6 0 0 1 21 9.8V18a2 2 0 0 1-2 2"/><path d="M7.4 8h7"/><path d="M7.4 11.5h7"/><path d="M7.4 15h4"/>',
+  repeat:      '<path d="m16.8 2.5 3.7 3.5-3.7 3.5"/><path d="M20.5 6H7.2A3.7 3.7 0 0 0 3.5 9.7v1.8"/><path d="m7.2 21.5-3.7-3.5 3.7-3.5"/><path d="M3.5 18h13.3a3.7 3.7 0 0 0 3.7-3.7v-1.8"/>',
+  umbrella:    '<path d="M12 3.2a8.8 8.8 0 0 1 8.8 8.8H3.2A8.8 8.8 0 0 1 12 3.2z"/><path d="M12 12v6.4a2.6 2.6 0 0 0 5.2 0"/><path d="M12 3.2V1.8"/>',
+  plant:       '<path d="M12 21v-8.4"/><path d="M12 13c0-4.2 2.7-7.2 8.2-7.2 0 4.7-3.1 7.2-8.2 7.2z"/><path d="M12 16.2c0-3.1-2.1-5.6-6.7-5.6 0 3.6 2.6 5.6 6.7 5.6z"/><path d="M8 21h8"/>',
+
+  /* ---------- health & body ---------- */
+  heart:       '<path d="M20.6 5.9a5 5 0 0 0-7.1 0L12 7.4l-1.5-1.5a5 5 0 0 0-7.1 7.1l8.6 8.6 8.6-8.6a5 5 0 0 0 0-7.1z"/>',
+  pill:        '<path d="M10.5 20.6a4.9 4.9 0 0 1-7-7l10-10a4.9 4.9 0 0 1 7 7z"/><path d="m8.5 8.5 7 7"/>',
+  stethoscope: '<path d="M5 2.5v4.8a4 4 0 0 0 8 0V2.5"/><path d="M3.6 2.5h2.8"/><path d="M11.6 2.5h2.8"/><path d="M9 11.3v2.9a5.2 5.2 0 0 0 5.2 5.2 4 4 0 0 0 4-4v-2.2"/><circle cx="18.2" cy="11" r="2.2"/>',
+  dumbbell:    '<rect x="1.4" y="8.5" width="3.2" height="7" rx="1.2"/><rect x="19.4" y="8.5" width="3.2" height="7" rx="1.2"/><rect x="5" y="6.2" width="3.2" height="11.6" rx="1.3"/><rect x="15.8" y="6.2" width="3.2" height="11.6" rx="1.3"/><path d="M8.2 12h7.6"/>',
+  sparkles:    '<path d="m11 3 1.9 5.1L18 10l-5.1 1.9L11 17l-1.9-5.1L4 10l5.1-1.9z"/><path d="m18 14.4.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"/>',
+  scissors:    '<circle cx="6" cy="6.2" r="3"/><circle cx="6" cy="17.8" r="3"/><path d="M20.4 3.8 8.2 16"/><path d="M8.2 8 20.4 20.2"/>',
+  shirt:       '<path d="M15.2 2.6 12 5 8.8 2.6 3.4 5.6l2.1 4.2 2-1.1V21h9V8.7l2 1.1 2.1-4.2z"/>',
+  baby:        '<circle cx="12" cy="9" r="6.2"/><path d="M9.6 8h.01"/><path d="M14.4 8h.01"/><path d="M9.6 11.4s.9 1.5 2.4 1.5 2.4-1.5 2.4-1.5"/><path d="M7.4 16.4 5.8 21"/><path d="m16.6 16.4 1.6 4.6"/>',
+  paw:         '<circle cx="6.4" cy="9.2" r="2.1"/><circle cx="10.2" cy="5.8" r="2.1"/><circle cx="14.6" cy="5.8" r="2.1"/><circle cx="18" cy="9.6" r="2"/><path d="M12.2 11.4c-2.6 0-4.6 2.1-5.6 4.2-1 2.1.3 4.2 2.6 4.2 1 0 2-.5 3-.5s2 .5 3 .5c2.3 0 3.6-2.1 2.6-4.2-1-2.1-3-4.2-5.6-4.2z"/>',
+  hand:        '<path d="M7 12.6V5.6a1.5 1.5 0 0 1 3 0v5.4"/><path d="M10 11V4a1.5 1.5 0 0 1 3 0v7"/><path d="M13 11V5.4a1.5 1.5 0 0 1 3 0V13"/><path d="M16 10.6a1.5 1.5 0 0 1 3 0V15a7 7 0 0 1-7 7h-.6a7 7 0 0 1-7-7v-1.4a1.5 1.5 0 0 1 3 0"/>',
+  users:       '<circle cx="9" cy="8" r="3.6"/><path d="M2.4 20.4v-1a5 5 0 0 1 5-5h3.2a5 5 0 0 1 5 5v1"/><path d="M16.4 4.9a3.6 3.6 0 0 1 0 6.2"/><path d="M18 14.6a5 5 0 0 1 3.6 4.8v1"/>',
+
+  /* ---------- leisure & learning ---------- */
+  film:        '<rect x="2.5" y="4" width="19" height="16" rx="2.4"/><path d="M7 4v16"/><path d="M17 4v16"/><path d="M2.5 12h19"/><path d="M2.5 8h4.5"/><path d="M2.5 16h4.5"/><path d="M17 8h4.5"/><path d="M17 16h4.5"/>',
+  music:       '<path d="M9 17.4V5.2l11-2v11.4"/><circle cx="6" cy="17.8" r="3"/><circle cx="17" cy="15.8" r="3"/>',
+  gamepad:     '<path d="M7 7.5h10a5 5 0 0 1 5 5v.5a3.6 3.6 0 0 1-6.5 2.1l-.7-1H9.2l-.7 1A3.6 3.6 0 0 1 2 13v-.5a5 5 0 0 1 5-5z"/><path d="M6.8 10.6v3"/><path d="M5.3 12.1h3"/><circle cx="16.4" cy="11" r=".9"/><circle cx="18.4" cy="13.2" r=".9"/>',
+  book:        '<path d="M4 19.4V4.6A2.6 2.6 0 0 1 6.6 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.6a2.6 2.6 0 0 1 0-5.2H20"/>',
+  'graduation-cap': '<path d="M21.8 8.2 12 3.6 2.2 8.2 12 12.8z"/><path d="M6.2 10.4V16c0 1.8 2.6 3.2 5.8 3.2s5.8-1.4 5.8-3.2v-5.6"/><path d="M21.8 8.2v6"/>',
+  camera:      '<path d="M3 8.8a2 2 0 0 1 2-2h2.2l1.2-2.2h7.2l1.2 2.2H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.4"/>',
+  'moon-star': '<path d="M20.2 15A8.5 8.5 0 0 1 9 3.8 8.5 8.5 0 1 0 20.2 15z"/><path d="m17.6 2.4.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
+  globe:       '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a13.5 13.5 0 0 1 0 18 13.5 13.5 0 0 1 0-18z"/>',
+  mail:        '<rect x="2.5" y="5" width="19" height="14" rx="2.2"/><path d="m3.2 7 8.8 6 8.8-6"/>',
+  'phone-call':'<path d="M6.6 3.2H4.5A1.5 1.5 0 0 0 3 4.8C3 12.6 10.4 20 18.2 20a1.6 1.6 0 0 0 1.6-1.5v-2.1a1.5 1.5 0 0 0-1.2-1.5l-2.6-.5a1.5 1.5 0 0 0-1.5.6l-.9 1.2a13 13 0 0 1-5-5l1.2-.9a1.5 1.5 0 0 0 .6-1.5l-.5-2.6a1.5 1.5 0 0 0-1.3-1z"/>',
+  store:       '<path d="M3.6 9.8V20a1 1 0 0 0 1 1h14.8a1 1 0 0 0 1-1V9.8"/><path d="M2 9.8 4 3.6h16l2 6.2a3 3 0 0 1-5 2.2 3 3 0 0 1-5 0 3 3 0 0 1-5 0 3 3 0 0 1-5-2.2z"/><path d="M9.4 21v-5.6h5.2V21"/>',
+  award:       '<circle cx="12" cy="8.6" r="5.8"/><path d="m8.6 13.6-1.4 8 4.8-2.5 4.8 2.5-1.4-8"/>',
+  'rotate-ccw':'<path d="M20.5 12a8.5 8.5 0 1 1-2.5-6l3 2.5"/><path d="M21 3v5.5h-5.5"/>',
+  'more-horizontal': '<circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/>',
+};
+
+/* Indonesian names — what the icon picker searches on, and the tooltip you
+   get on hover. Without these, searching "kopi" would never find `coffee`. */
+const ICON_LABELS = {
+  utensils: 'makan piring sendok garpu',
+  coffee: 'kopi ngopi cafe minum panas',
+  'cup-soda': 'minuman es boba jus soda',
+  cake: 'kue jajan ulang tahun dessert',
+  'shopping-cart': 'belanja harian troli groceries pasar',
+  store: 'warung toko usaha dagang',
+  'shopping-bag': 'belanja tas shopping',
+  package: 'paket kiriman barang online',
+  tag: 'harga diskon label jual',
+  gift: 'hadiah kado bingkisan thr',
+  truck: 'pengiriman ongkir truk logistik',
+  ticket: 'tiket karcis konser masuk',
+  car: 'mobil kendaraan taksi',
+  bike: 'motor sepeda ojek',
+  bus: 'bus kereta angkot transportasi umum',
+  plane: 'pesawat terbang travel liburan',
+  fuel: 'bensin bbm pom solar isi',
+  parking: 'parkir tol retribusi',
+  wrench: 'servis bengkel perbaikan kunci',
+  home: 'rumah tangga kebutuhan',
+  building: 'gedung kantor apartemen',
+  key: 'sewa kos kontrakan kunci',
+  bed: 'hotel penginapan kasur tidur',
+  zap: 'listrik token pln setrum',
+  droplet: 'air pdam galon',
+  flame: 'gas lpg elpiji api kompor',
+  wifi: 'internet wifi kuota indihome',
+  smartphone: 'pulsa hp telepon ponsel',
+  laptop: 'laptop komputer freelance kerja',
+  receipt: 'tagihan pajak struk nota admin',
+  shield: 'asuransi proteksi jaminan bpjs',
+  newspaper: 'koran media berita langganan',
+  repeat: 'langganan bulanan berulang subscription',
+  umbrella: 'payung proteksi dana darurat',
+  plant: 'tanaman kebun bunga tumbuh',
+  heart: 'kesehatan cinta sehat',
+  pill: 'obat apotek vitamin',
+  stethoscope: 'dokter klinik rumah sakit periksa',
+  dumbbell: 'olahraga gym fitness',
+  sparkles: 'perawatan diri skincare kecantikan',
+  scissors: 'salon potong rambut barber',
+  shirt: 'pakaian baju fashion laundry',
+  baby: 'anak bayi popok susu',
+  paw: 'peliharaan kucing anjing hewan',
+  users: 'keluarga teman sosial patungan',
+  hand: 'donasi zakat sedekah amal infak',
+  film: 'film bioskop nonton hiburan',
+  music: 'musik lagu spotify konser',
+  gamepad: 'game nongkrong main hiburan',
+  book: 'buku baca novel',
+  'graduation-cap': 'pendidikan sekolah kuliah kursus les',
+  camera: 'kamera foto fotografi',
+  'moon-star': 'ibadah masjid religi kurban',
+  globe: 'internasional luar negeri global',
+  mail: 'surat email pos',
+  'phone-call': 'telepon pulsa hubungi',
+  wallet: 'dompet tunai cash',
+  banknote: 'uang tunai kertas cash',
+  coins: 'koin tabungan receh simpanan',
+  'piggy-bank': 'celengan menabung tabungan',
+  landmark: 'bank rekening bunga atm',
+  'credit-card': 'kartu kredit debit cicilan',
+  briefcase: 'gaji kerja kantor pekerjaan',
+  safe: 'brankas simpanan aman deposito',
+  award: 'bonus penghargaan prestasi thr',
+  'trending-up': 'investasi untung naik saham',
+  'trending-down': 'rugi turun minus',
+  'chart-pie': 'laporan komposisi analisa',
+  'chart-bar': 'statistik grafik data',
+  scale: 'neraca timbang seimbang',
+  'rotate-ccw': 'refund kembali balik retur',
+  target: 'target tujuan goal rencana',
+  star: 'favorit bintang penting',
+  clock: 'waktu jam durasi',
+  calendar: 'jadwal tanggal kalender',
+  'more-horizontal': 'lain lainnya serba misc',
+};
+
+function iconLabel(name) {
+  const s = ICON_LABELS[name] || name;
+  return s.split(' ')[0].replace(/^./, c => c.toUpperCase());
+}
+
+/* Icons offered in the custom-category icon picker, grouped for browsing. */
+const ICON_GROUPS = [
+  { label: 'Makan & Minum', names: ['utensils', 'coffee', 'cup-soda', 'cake', 'shopping-cart', 'store'] },
+  { label: 'Belanja',       names: ['shopping-bag', 'package', 'tag', 'gift', 'truck', 'ticket'] },
+  { label: 'Transportasi',  names: ['car', 'bike', 'bus', 'plane', 'fuel', 'parking', 'wrench'] },
+  { label: 'Rumah & Tagihan', names: ['home', 'building', 'key', 'bed', 'zap', 'droplet', 'flame', 'wifi', 'smartphone', 'laptop', 'receipt', 'shield', 'repeat', 'newspaper', 'umbrella', 'plant'] },
+  { label: 'Kesehatan & Diri', names: ['heart', 'pill', 'stethoscope', 'dumbbell', 'sparkles', 'scissors', 'shirt', 'baby', 'paw', 'users', 'hand'] },
+  { label: 'Hiburan & Belajar', names: ['film', 'music', 'gamepad', 'book', 'graduation-cap', 'camera', 'moon-star', 'globe', 'mail', 'phone-call'] },
+  { label: 'Uang & Kerja',  names: ['wallet', 'banknote', 'coins', 'piggy-bank', 'landmark', 'credit-card', 'briefcase', 'safe', 'award', 'trending-up', 'trending-down', 'chart-pie', 'chart-bar', 'scale', 'rotate-ccw', 'target', 'star', 'clock', 'calendar', 'more-horizontal'] },
+];
+
+const POCKET_ICONS = ['wallet', 'landmark', 'smartphone', 'credit-card', 'piggy-bank', 'coins', 'safe', 'banknote', 'briefcase', 'home', 'target', 'star'];
+
+/* Soft, low-contrast palette — nothing neon, nothing that buzzes. */
+const PALETTE = [
+  '#C9897A', '#D2A26B', '#C6B074', '#A8B983', '#83B394', '#7FB0AC',
+  '#8AA7C4', '#9AA0C9', '#AF9BC2', '#C695A9', '#B79C8E', '#9EA79B',
+  '#CBA08C', '#A5B7C6', '#B6AE96', '#8FA8A0',
+];
+
+function icon(name, size = 22, cls = '') {
+  const body = ICONS[name] || ICONS['more-horizontal'];
+  return `<svg class="ico ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"
+    aria-hidden="true">${body}</svg>`;
+}
+
+/* A rounded tinted square holding an icon — used everywhere for categories. */
+function iconBubble(name, color, size = 38, iconSize = 20, cls = '') {
+  return `<span class="bubble ${cls}" style="width:${size}px;height:${size}px;background:${tint(color)};color:${color}">
+    ${icon(name, iconSize)}
+  </span>`;
+}
+
+/* Translucent wash of a colour that works on both light and dark surfaces. */
+function tint(hex, alpha = 0.16) {
+  const c = hex.replace('#', '');
+  const n = parseInt(c.length === 3 ? c.split('').map(x => x + x).join('') : c, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+  </script>
+  <script>
+/* ============================================================
+   Utils — dates, money formatting, period presets, bucketing.
+   Dates are stored as plain 'YYYY-MM-DD' strings so a backup
+   file never drifts across timezones.
+   ============================================================ */
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const MONTHS_LONG  = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli',
+                      'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const DAYS_SHORT   = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+const U = {
+
+  /* ---------- ids ---------- */
+  uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  },
+
+  /* ---------- date keys ---------- */
+  pad(n) { return String(n).padStart(2, '0'); },
+
+  key(d) {
+    return `${d.getFullYear()}-${U.pad(d.getMonth() + 1)}-${U.pad(d.getDate())}`;
+  },
+
+  parse(k) {
+    return new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10));
+  },
+
+  today() { return U.key(new Date()); },
+
+  /* ---------- date math (all operate on Date, return Date) ---------- */
+  addDays(d, n)   { const x = new Date(d); x.setDate(x.getDate() + n); return x; },
+  addMonths(d, n) {
+    const x = new Date(d.getFullYear(), d.getMonth() + n, 1);
+    // clamp: 31 Jan + 1 month -> 28/29 Feb, never spills into March
+    const last = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate();
+    x.setDate(Math.min(d.getDate(), last));
+    return x;
+  },
+  addYears(d, n) {
+    const x = new Date(d);
+    x.setFullYear(x.getFullYear() + n);
+    return x;
+  },
+
+  startOfWeek(d) {                        // Monday-based
+    const x = new Date(d);
+    const dow = (x.getDay() + 6) % 7;
+    x.setDate(x.getDate() - dow);
+    return x;
+  },
+  endOfWeek(d)    { return U.addDays(U.startOfWeek(d), 6); },
+  startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); },
+  endOfMonth(d)   { return new Date(d.getFullYear(), d.getMonth() + 1, 0); },
+  startOfQuarter(d) { return new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1); },
+  endOfQuarter(d)   { return new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3 + 3, 0); },
+  startOfYear(d)  { return new Date(d.getFullYear(), 0, 1); },
+  endOfYear(d)    { return new Date(d.getFullYear(), 11, 31); },
+
+  daysBetween(a, b) {
+    return Math.round((U.parse(b) - U.parse(a)) / 86400000) + 1;
+  },
+
+  /* ---------- labels ---------- */
+  fmtDate(k, style = 'medium') {
+    const d = U.parse(k);
+    if (style === 'short')  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+    if (style === 'medium') return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+    if (style === 'long')   return `${DAYS_SHORT[d.getDay()]}, ${d.getDate()} ${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`;
+    return k;
+  },
+
+  /** "Hari ini" / "Kemarin" / "Sen, 14 Juli 2025" */
+  fmtDateRelative(k) {
+    const t = U.today();
+    if (k === t) return 'Hari ini';
+    if (k === U.key(U.addDays(new Date(), -1))) return 'Kemarin';
+    if (k === U.key(U.addDays(new Date(), 1)))  return 'Besok';
+    const d = U.parse(k);
+    const sameYear = d.getFullYear() === new Date().getFullYear();
+    return `${DAYS_SHORT[d.getDay()]}, ${d.getDate()} ${MONTHS_LONG[d.getMonth()]}` +
+           (sameYear ? '' : ` ${d.getFullYear()}`);
+  },
+
+  fmtRange(start, end) {
+    if (!start || !end) return 'Semua waktu';
+    if (start === end) return U.fmtDate(start, 'medium');
+    const a = U.parse(start), b = U.parse(end);
+    if (a.getFullYear() === b.getFullYear()) {
+      if (a.getMonth() === b.getMonth()) {
+        // whole month?
+        if (a.getDate() === 1 && b.getDate() === U.endOfMonth(b).getDate())
+          return `${MONTHS_LONG[a.getMonth()]} ${a.getFullYear()}`;
+        return `${a.getDate()}–${b.getDate()} ${MONTHS_SHORT[b.getMonth()]} ${b.getFullYear()}`;
+      }
+      if (a.getDate() === 1 && a.getMonth() === 0 && b.getMonth() === 11 && b.getDate() === 31)
+        return String(a.getFullYear());
+      return `${a.getDate()} ${MONTHS_SHORT[a.getMonth()]} – ${b.getDate()} ${MONTHS_SHORT[b.getMonth()]} ${b.getFullYear()}`;
+    }
+    return `${U.fmtDate(start, 'medium')} – ${U.fmtDate(end, 'medium')}`;
+  },
+
+  /* ---------- money ---------- */
+  money(n, opts = {}) {
+    const { symbol = 'Rp', sign = false, hide = false } = opts;
+    if (hide) return `${symbol} ••••••`;
+    const abs = Math.abs(Math.round(n));
+    const body = abs.toLocaleString('id-ID');
+    const pre = sign ? (n > 0 ? '+' : n < 0 ? '−' : '') : (n < 0 ? '−' : '');
+    return `${pre}${symbol} ${body}`;
+  },
+
+  /** Compact Indonesian scale: 1,2jt / 350rb / 4,5M */
+  compact(n) {
+    const abs = Math.abs(n);
+    const s = n < 0 ? '−' : '';
+    const trim = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
+    if (abs >= 1e12) return s + trim(abs / 1e12) + 'T';
+    if (abs >= 1e9)  return s + trim(abs / 1e9)  + 'M';
+    if (abs >= 1e6)  return s + trim(abs / 1e6)  + 'jt';
+    if (abs >= 1e3)  return s + trim(abs / 1e3)  + 'rb';
+    return s + String(Math.round(abs));
+  },
+
+  pct(part, whole) {
+    if (!whole) return 0;
+    return (part / whole) * 100;
+  },
+
+  clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); },
+
+  escape(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  },
+};
+
+/* ============================================================
+   Period presets
+   ============================================================ */
+
+const PRESETS = [
+  { id: 'today',       label: 'Hari ini',          group: 'Cepat' },
+  { id: 'yesterday',   label: 'Kemarin',           group: 'Cepat' },
+  { id: 'thisWeek',    label: 'Minggu ini',        group: 'Cepat' },
+  { id: 'lastWeek',    label: 'Minggu lalu',       group: 'Cepat' },
+  { id: 'last7',       label: '7 hari terakhir',   group: 'Cepat' },
+  { id: 'thisMonth',   label: 'Bulan ini',         group: 'Bulanan' },
+  { id: 'lastMonth',   label: 'Bulan lalu',        group: 'Bulanan' },
+  { id: 'last30',      label: '30 hari terakhir',  group: 'Bulanan' },
+  { id: 'last90',      label: '90 hari terakhir',  group: 'Bulanan' },
+  { id: 'thisQuarter', label: 'Kuartal ini',       group: 'Bulanan' },
+  { id: 'lastQuarter', label: 'Kuartal lalu',      group: 'Bulanan' },
+  { id: 'thisYear',    label: 'Tahun ini',         group: 'Tahunan' },
+  { id: 'lastYear',    label: 'Tahun lalu',        group: 'Tahunan' },
+  { id: 'last12m',     label: '12 bulan terakhir', group: 'Tahunan' },
+  { id: 'all',         label: 'Semua waktu',       group: 'Tahunan' },
+  { id: 'custom',      label: 'Rentang kustom',    group: 'Kustom' },
+];
+
+/**
+ * Resolve a preset into concrete {start, end} date keys.
+ * `all` returns nulls — callers treat that as unbounded.
+ */
+function resolvePreset(id, custom = {}) {
+  const now = new Date();
+  const k = U.key;
+
+  switch (id) {
+    case 'today':     return { start: k(now), end: k(now) };
+    case 'yesterday': { const y = U.addDays(now, -1); return { start: k(y), end: k(y) }; }
+    case 'thisWeek':  return { start: k(U.startOfWeek(now)), end: k(U.endOfWeek(now)) };
+    case 'lastWeek':  { const w = U.addDays(U.startOfWeek(now), -7);
+                        return { start: k(w), end: k(U.addDays(w, 6)) }; }
+    case 'last7':     return { start: k(U.addDays(now, -6)),  end: k(now) };
+    case 'last30':    return { start: k(U.addDays(now, -29)), end: k(now) };
+    case 'last90':    return { start: k(U.addDays(now, -89)), end: k(now) };
+    case 'thisMonth': return { start: k(U.startOfMonth(now)), end: k(U.endOfMonth(now)) };
+    case 'lastMonth': { const m = U.addMonths(U.startOfMonth(now), -1);
+                        return { start: k(U.startOfMonth(m)), end: k(U.endOfMonth(m)) }; }
+    case 'thisQuarter': return { start: k(U.startOfQuarter(now)), end: k(U.endOfQuarter(now)) };
+    case 'lastQuarter': { const q = U.addMonths(U.startOfQuarter(now), -3);
+                          return { start: k(U.startOfQuarter(q)), end: k(U.endOfQuarter(q)) }; }
+    case 'thisYear':  return { start: k(U.startOfYear(now)), end: k(U.endOfYear(now)) };
+    case 'lastYear':  { const y = U.addYears(now, -1);
+                        return { start: k(U.startOfYear(y)), end: k(U.endOfYear(y)) }; }
+    case 'last12m':   { const s = U.startOfMonth(U.addMonths(now, -11));
+                        return { start: k(s), end: k(U.endOfMonth(now)) }; }
+    case 'all':       return { start: null, end: null };
+    case 'custom':    return { start: custom.start || U.today(), end: custom.end || U.today() };
+    default:          return { start: k(U.startOfMonth(now)), end: k(U.endOfMonth(now)) };
+  }
+}
+
+function presetLabel(id) {
+  return (PRESETS.find(p => p.id === id) || {}).label || 'Periode';
+}
+
+/**
+ * The period a range is compared against.
+ *   prev — the same number of days immediately before
+ *   yoy  — the same calendar dates one year earlier
+ */
+function comparisonRange(range, mode, presetId) {
+  if (mode === 'none' || !range.start || !range.end) return null;
+
+  if (mode === 'yoy') {
+    return {
+      start: U.key(U.addYears(U.parse(range.start), -1)),
+      end:   U.key(U.addYears(U.parse(range.end), -1)),
+      label: 'Periode sama tahun lalu',
+    };
+  }
+
+  // Calendar-aware shift keeps "bulan ini" comparing against a whole month,
+  // not against a 31-day window that straddles two months.
+  const whole = {
+    thisMonth: () => { const m = U.addMonths(new Date(), -1);
+                       return { start: U.startOfMonth(m), end: U.endOfMonth(m), label: 'Bulan lalu' }; },
+    lastMonth: () => { const m = U.addMonths(new Date(), -2);
+                       return { start: U.startOfMonth(m), end: U.endOfMonth(m), label: '2 bulan lalu' }; },
+    thisYear:  () => { const y = U.addYears(new Date(), -1);
+                       return { start: U.startOfYear(y), end: U.endOfYear(y), label: 'Tahun lalu' }; },
+    thisQuarter: () => { const q = U.addMonths(U.startOfQuarter(new Date()), -3);
+                         return { start: U.startOfQuarter(q), end: U.endOfQuarter(q), label: 'Kuartal lalu' }; },
+    thisWeek:  () => { const w = U.addDays(U.startOfWeek(new Date()), -7);
+                       return { start: w, end: U.addDays(w, 6), label: 'Minggu lalu' }; },
+  }[presetId];
+
+  if (whole) {
+    const r = whole();
+    return { start: U.key(r.start), end: U.key(r.end), label: r.label };
+  }
+
+  const len = U.daysBetween(range.start, range.end);
+  const end = U.addDays(U.parse(range.start), -1);
+  const start = U.addDays(end, -(len - 1));
+  return { start: U.key(start), end: U.key(end), label: 'Periode sebelumnya' };
+}
+
+/* ============================================================
+   Bucketing — choose a sensible granularity for the trend chart
+   ============================================================ */
+
+function pickGranularity(start, end) {
+  const days = U.daysBetween(start, end);
+  if (days <= 14)  return 'day';
+  if (days <= 92)  return 'week';
+  if (days <= 800) return 'month';
+  return 'year';
+}
+
+/**
+ * Build the empty time buckets covering [start, end].
+ * Each bucket: { key, label, start, end }
+ */
+function buildBuckets(start, end, granularity) {
+  const g = granularity || pickGranularity(start, end);
+  const out = [];
+  const last = U.parse(end);
+  let cursor;
+
+  if (g === 'day') {
+    cursor = U.parse(start);
+    while (cursor <= last) {
+      const k = U.key(cursor);
+      out.push({ key: k, start: k, end: k, label: String(cursor.getDate()) });
+      cursor = U.addDays(cursor, 1);
+    }
+  } else if (g === 'week') {
+    cursor = U.startOfWeek(U.parse(start));
+    while (cursor <= last) {
+      const e = U.addDays(cursor, 6);
+      out.push({
+        key: U.key(cursor),
+        start: U.key(cursor),
+        end: U.key(e),
+        label: `${cursor.getDate()}/${cursor.getMonth() + 1}`,
+      });
+      cursor = U.addDays(cursor, 7);
+    }
+  } else if (g === 'month') {
+    cursor = U.startOfMonth(U.parse(start));
+    while (cursor <= last) {
+      const e = U.endOfMonth(cursor);
+      out.push({
+        key: U.key(cursor),
+        start: U.key(cursor),
+        end: U.key(e),
+        label: MONTHS_SHORT[cursor.getMonth()],
+        sub: cursor.getMonth() === 0 ? String(cursor.getFullYear()) : '',
+      });
+      cursor = U.addMonths(cursor, 1);
+    }
+  } else {
+    cursor = U.startOfYear(U.parse(start));
+    while (cursor <= last) {
+      out.push({
+        key: U.key(cursor),
+        start: U.key(cursor),
+        end: U.key(U.endOfYear(cursor)),
+        label: String(cursor.getFullYear()),
+      });
+      cursor = U.addYears(cursor, 1);
+    }
+  }
+
+  return { granularity: g, buckets: out };
+}
+
+const GRANULARITY_LABEL = { day: 'Harian', week: 'Mingguan', month: 'Bulanan', year: 'Tahunan' };
+
+  </script>
+  <script>
+/* ============================================================
+   Store — the whole app state lives in one JSON object.
+   Kept in localStorage while you use it, and exportable to a
+   single .json file you can park in Google Drive.
+   ============================================================ */
+
+const SCHEMA_VERSION = 1;
+const STORAGE_KEY = 'aturinduit.v1';
+
+const DEFAULT_POCKETS = [
+  { icon: 'wallet',      name: 'Dompet Tunai',  color: '#C9A26B', kind: 'cash',    initial: 0 },
+  { icon: 'landmark',    name: 'Rekening Bank', color: '#8AA7C4', kind: 'bank',    initial: 0 },
+  { icon: 'smartphone',  name: 'E-Wallet',      color: '#83B394', kind: 'ewallet', initial: 0 },
+  { icon: 'piggy-bank',  name: 'Tabungan',      color: '#AF9BC2', kind: 'savings', initial: 0 },
+];
+
+const DEFAULT_EXPENSE = [
+  ['Makan & Minum',    'utensils',        '#C9897A'],
+  ['Kopi & Jajan',     'coffee',          '#B79C8E'],
+  ['Belanja Harian',   'shopping-cart',   '#D2A26B'],
+  ['Belanja',          'shopping-bag',    '#C695A9'],
+  ['Transportasi',     'car',             '#8AA7C4'],
+  ['Bensin',           'fuel',            '#C6B074'],
+  ['Parkir & Tol',     'parking',         '#9EA79B'],
+  ['Pulsa & Internet', 'wifi',            '#7FB0AC'],
+  ['Listrik & Air',    'zap',             '#D2A26B'],
+  ['Sewa / Kos',       'key',             '#A5B7C6'],
+  ['Rumah Tangga',     'home',            '#B6AE96'],
+  ['Kesehatan',        'pill',            '#83B394'],
+  ['Olahraga',         'dumbbell',        '#A8B983'],
+  ['Hiburan',          'film',            '#9AA0C9'],
+  ['Langganan',        'repeat',          '#AF9BC2'],
+  ['Pendidikan',       'graduation-cap',  '#8FA8A0'],
+  ['Pakaian',          'shirt',           '#CBA08C'],
+  ['Perawatan Diri',   'sparkles',        '#C695A9'],
+  ['Hadiah',           'gift',            '#C9897A'],
+  ['Donasi & Zakat',   'hand',            '#83B394'],
+  ['Keluarga',         'users',           '#B79C8E'],
+  ['Peliharaan',       'paw',             '#C6B074'],
+  ['Servis Kendaraan', 'wrench',          '#9EA79B'],
+  ['Pajak & Admin',    'receipt',         '#A5B7C6'],
+  ['Asuransi',         'shield',          '#8FA8A0'],
+  ['Traveling',        'plane',           '#7FB0AC'],
+  ['Lain-lain',        'more-horizontal', '#9EA79B'],
+];
+
+const DEFAULT_INCOME = [
+  ['Gaji',        'briefcase',       '#83B394'],
+  ['Bonus & THR', 'award',           '#C6B074'],
+  ['Freelance',   'laptop',          '#8AA7C4'],
+  ['Usaha',       'store',           '#D2A26B'],
+  ['Investasi',   'trending-up',     '#8FA8A0'],
+  ['Bunga Bank',  'landmark',        '#A5B7C6'],
+  ['Penjualan',   'tag',             '#B79C8E'],
+  ['Hadiah',      'gift',            '#C695A9'],
+  ['Refund',      'rotate-ccw',      '#9AA0C9'],
+  ['Lain-lain',   'more-horizontal', '#9EA79B'],
+];
+
+const Store = {
+  data: null,
+
+  /* ---------- lifecycle ---------- */
+
+  init() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      try {
+        Store.data = Store.migrate(JSON.parse(raw));
+      } catch (e) {
+        console.error('Data rusak, memakai data awal.', e);
+        Store.data = Store.seed();
+      }
+    } else {
+      Store.data = Store.seed();
+    }
+    Store.save();
+    return Store.data;
+  },
+
+  seed() {
+    const pockets = DEFAULT_POCKETS.map((p, i) => ({
+      id: U.uid(), name: p.name, icon: p.icon, color: p.color,
+      kind: p.kind, initial: p.initial, target: 0, order: i, archived: false,
+    }));
+
+    const mk = (list, type) => list.map(([name, ic, color], i) => ({
+      id: U.uid(), name, icon: ic, color, type, order: i, archived: false,
+    }));
+
+    return {
+      version: SCHEMA_VERSION,
+      createdAt: new Date().toISOString(),
+      settings: {
+        currencySymbol: 'Rp',
+        theme: 'auto',
+        hideAmounts: false,
+        profileName: '',               // labels the backup file, nothing more
+        defaultPocketId: pockets[0].id,
+        quickCategoryIds: [],          // empty -> auto-pick most used
+        lastBackupAt: null,
+      },
+      pockets,
+      categories: [...mk(DEFAULT_EXPENSE, 'expense'), ...mk(DEFAULT_INCOME, 'income')],
+      transactions: [],
+    };
+  },
+
+  /** Tolerates older/partial files so an import never hard-fails. */
+  migrate(d) {
+    d.version = SCHEMA_VERSION;
+    d.settings = Object.assign({
+      currencySymbol: 'Rp', theme: 'auto', hideAmounts: false, profileName: '',
+      defaultPocketId: null, quickCategoryIds: [], lastBackupAt: null,
+    }, d.settings || {});
+    d.pockets = (d.pockets || []).map((p, i) => Object.assign(
+      { id: U.uid(), name: 'Pocket', icon: 'wallet', color: '#8AA7C4',
+        kind: 'cash', initial: 0, target: 0, order: i, archived: false }, p));
+    d.categories = (d.categories || []).map((c, i) => Object.assign(
+      { id: U.uid(), name: 'Kategori', icon: 'more-horizontal', color: '#9EA79B',
+        type: 'expense', order: i, archived: false }, c));
+    d.transactions = (d.transactions || []).map(t => Object.assign(
+      { id: U.uid(), type: 'expense', amount: 0, date: U.today(),
+        categoryId: null, pocketId: null, toPocketId: null, note: '',
+        createdAt: new Date().toISOString() }, t));
+
+    if (!d.pockets.length) d.pockets = Store.seed().pockets;
+    if (!d.categories.length) d.categories = Store.seed().categories;
+    if (!d.pockets.some(p => p.id === d.settings.defaultPocketId))
+      d.settings.defaultPocketId = d.pockets[0].id;
+
+    return d;
+  },
+
+  save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(Store.data));
+    } catch (e) {
+      console.error('Gagal menyimpan', e);
+      toast('Penyimpanan penuh — coba export lalu hapus data lama', 'alert');
+    }
+  },
+
+  /* ---------- lookups ---------- */
+
+  category(id) { return Store.data.categories.find(c => c.id === id) || null; },
+  pocket(id)   { return Store.data.pockets.find(p => p.id === id) || null; },
+
+  categoriesOf(type, { includeArchived = false } = {}) {
+    return Store.data.categories
+      .filter(c => c.type === type && (includeArchived || !c.archived))
+      .sort((a, b) => a.order - b.order);
+  },
+
+  activePockets({ includeArchived = false } = {}) {
+    return Store.data.pockets
+      .filter(p => includeArchived || !p.archived)
+      .sort((a, b) => a.order - b.order);
+  },
+
+  defaultPocket() {
+    return Store.pocket(Store.data.settings.defaultPocketId) || Store.activePockets()[0] || null;
+  },
+
+  /* ---------- balances (always computed over ALL transactions) ---------- */
+
+  pocketBalance(pocketId) {
+    const p = Store.pocket(pocketId);
+    if (!p) return 0;
+    let bal = Number(p.initial) || 0;
+    for (const t of Store.data.transactions) {
+      const amt = Number(t.amount) || 0;
+      if (t.type === 'income'  && t.pocketId === pocketId) bal += amt;
+      if (t.type === 'expense' && t.pocketId === pocketId) bal -= amt;
+      if (t.type === 'transfer') {
+        if (t.pocketId === pocketId)   bal -= amt;
+        if (t.toPocketId === pocketId) bal += amt;
+      }
+    }
+    return bal;
+  },
+
+  totalBalance() {
+    return Store.activePockets().reduce((s, p) => s + Store.pocketBalance(p.id), 0);
+  },
+
+  /* ---------- transactions ---------- */
+
+  addTx(tx) {
+    const rec = Object.assign({
+      id: U.uid(), createdAt: new Date().toISOString(),
+      type: 'expense', amount: 0, date: U.today(),
+      categoryId: null, pocketId: null, toPocketId: null, note: '',
+    }, tx);
+    Store.data.transactions.push(rec);
+    Store.save();
+    return rec;
+  },
+
+  updateTx(id, patch) {
+    const t = Store.data.transactions.find(x => x.id === id);
+    if (!t) return null;
+    Object.assign(t, patch);
+    Store.save();
+    return t;
+  },
+
+  deleteTx(id) {
+    const i = Store.data.transactions.findIndex(x => x.id === id);
+    if (i < 0) return null;
+    const [removed] = Store.data.transactions.splice(i, 1);
+    Store.save();
+    return removed;
+  },
+
+  /** Filtered + sorted newest first. */
+  query(filter = {}) {
+    const { start, end, types, categoryIds, pocketIds, search } = filter;
+    const q = (search || '').trim().toLowerCase();
+
+    return Store.data.transactions.filter(t => {
+      if (start && t.date < start) return false;
+      if (end && t.date > end) return false;
+      if (types && types.length && !types.includes(t.type)) return false;
+      if (categoryIds && categoryIds.length) {
+        if (t.type === 'transfer') return false;
+        if (!categoryIds.includes(t.categoryId)) return false;
+      }
+      if (pocketIds && pocketIds.length) {
+        const hit = pocketIds.includes(t.pocketId) ||
+                    (t.type === 'transfer' && pocketIds.includes(t.toPocketId));
+        if (!hit) return false;
+      }
+      if (q) {
+        const cat = Store.category(t.categoryId);
+        const hay = `${t.note || ''} ${cat ? cat.name : ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    }).sort((a, b) =>
+      b.date.localeCompare(a.date) || String(b.createdAt).localeCompare(String(a.createdAt)));
+  },
+
+  /** Income / expense / net for a set of transactions. */
+  totals(list) {
+    let income = 0, expense = 0;
+    for (const t of list) {
+      const a = Number(t.amount) || 0;
+      if (t.type === 'income') income += a;
+      else if (t.type === 'expense') expense += a;
+    }
+    return { income, expense, net: income - expense, count: list.length };
+  },
+
+  /** Aggregate per category, biggest first. */
+  byCategory(list, type) {
+    const map = new Map();
+    for (const t of list) {
+      if (t.type !== type) continue;
+      const key = t.categoryId || '_none';
+      map.set(key, (map.get(key) || 0) + (Number(t.amount) || 0));
+    }
+    return [...map.entries()]
+      .map(([id, value]) => {
+        const c = Store.category(id);
+        return {
+          id,
+          value,
+          name: c ? c.name : 'Tanpa kategori',
+          icon: c ? c.icon : 'more-horizontal',
+          color: c ? c.color : '#9EA79B',
+        };
+      })
+      .sort((a, b) => b.value - a.value);
+  },
+
+  /* ---------- categories ---------- */
+
+  addCategory(cat) {
+    const siblings = Store.categoriesOf(cat.type, { includeArchived: true });
+    const rec = Object.assign({
+      id: U.uid(), name: 'Kategori baru', icon: 'more-horizontal',
+      color: PALETTE[0], type: 'expense', archived: false,
+      order: siblings.length,
+    }, cat);
+    Store.data.categories.push(rec);
+    Store.save();
+    return rec;
+  },
+
+  updateCategory(id, patch) {
+    const c = Store.category(id);
+    if (!c) return null;
+    Object.assign(c, patch);
+    Store.save();
+    return c;
+  },
+
+  categoryUsage(id) {
+    return Store.data.transactions.filter(t => t.categoryId === id).length;
+  },
+
+  /** Delete outright when unused; otherwise archive so history stays intact. */
+  removeCategory(id) {
+    const used = Store.categoryUsage(id);
+    if (used > 0) {
+      Store.updateCategory(id, { archived: true });
+      return { archived: true, used };
+    }
+    Store.data.categories = Store.data.categories.filter(c => c.id !== id);
+    Store.data.settings.quickCategoryIds =
+      Store.data.settings.quickCategoryIds.filter(x => x !== id);
+    Store.save();
+    return { archived: false, used: 0 };
+  },
+
+  /* ---------- pockets ---------- */
+
+  addPocket(p) {
+    const rec = Object.assign({
+      id: U.uid(), name: 'Pocket baru', icon: 'wallet', color: PALETTE[6],
+      kind: 'cash', initial: 0, target: 0, archived: false,
+      order: Store.data.pockets.length,
+    }, p);
+    Store.data.pockets.push(rec);
+    Store.save();
+    return rec;
+  },
+
+  updatePocket(id, patch) {
+    const p = Store.pocket(id);
+    if (!p) return null;
+    Object.assign(p, patch);
+    Store.save();
+    return p;
+  },
+
+  pocketUsage(id) {
+    return Store.data.transactions
+      .filter(t => t.pocketId === id || t.toPocketId === id).length;
+  },
+
+  removePocket(id) {
+    if (Store.data.pockets.filter(p => !p.archived).length <= 1)
+      return { error: 'Minimal harus ada satu pocket aktif.' };
+
+    const used = Store.pocketUsage(id);
+    if (used > 0) {
+      Store.updatePocket(id, { archived: true });
+      if (Store.data.settings.defaultPocketId === id)
+        Store.data.settings.defaultPocketId = Store.activePockets()[0].id;
+      Store.save();
+      return { archived: true, used };
+    }
+    Store.data.pockets = Store.data.pockets.filter(p => p.id !== id);
+    if (Store.data.settings.defaultPocketId === id)
+      Store.data.settings.defaultPocketId = Store.activePockets()[0].id;
+    Store.save();
+    return { archived: false, used: 0 };
+  },
+
+  /* ---------- settings ---------- */
+
+  setSetting(key, value) {
+    Store.data.settings[key] = value;
+    Store.save();
+  },
+
+  /* ---------- backup file ---------- */
+
+  /** Includes the profile name so two people's backups never look alike. */
+  exportName() {
+    const slug = (Store.data.settings.profileName || '')
+      .toLowerCase().trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 24);
+    return `aturinduit-${slug ? slug + '-' : ''}${U.today()}.json`;
+  },
+
+  exportText() {
+    const payload = Object.assign({}, Store.data, {
+      exportedAt: new Date().toISOString(),
+      app: 'AturinDuit',
+      profile: Store.data.settings.profileName || '',
+      version: SCHEMA_VERSION,
+    });
+    return JSON.stringify(payload, null, 2);
+  },
+
+  /**
+   * mode 'replace' — the file becomes your data
+   * mode 'merge'   — keep what you have, add anything new from the file
+   */
+  importText(text, mode = 'replace') {
+    let incoming;
+    try {
+      incoming = JSON.parse(text);
+    } catch {
+      throw new Error('File bukan JSON yang valid.');
+    }
+    if (!incoming || typeof incoming !== 'object' || !Array.isArray(incoming.transactions))
+      throw new Error('Struktur file tidak dikenali — pastikan ini backup AturinDuit.');
+
+    const clean = Store.migrate(incoming);
+
+    if (mode === 'replace') {
+      Store.data = clean;
+      Store.save();
+      return { pockets: clean.pockets.length, categories: clean.categories.length,
+               transactions: clean.transactions.length, mode };
+    }
+
+    // merge — id collisions are skipped, names are matched so categories
+    // from a second device don't duplicate
+    const cur = Store.data;
+    let addedTx = 0, addedCat = 0, addedPocket = 0;
+
+    const pocketMap = new Map();
+    for (const p of clean.pockets) {
+      const match = cur.pockets.find(x => x.id === p.id) ||
+                    cur.pockets.find(x => x.name.toLowerCase() === p.name.toLowerCase());
+      if (match) { pocketMap.set(p.id, match.id); continue; }
+      const rec = Object.assign({}, p, { order: cur.pockets.length });
+      cur.pockets.push(rec);
+      pocketMap.set(p.id, rec.id);
+      addedPocket++;
+    }
+
+    const catMap = new Map();
+    for (const c of clean.categories) {
+      const match = cur.categories.find(x => x.id === c.id) ||
+                    cur.categories.find(x => x.type === c.type &&
+                                             x.name.toLowerCase() === c.name.toLowerCase());
+      if (match) { catMap.set(c.id, match.id); continue; }
+      const rec = Object.assign({}, c, { order: cur.categories.length });
+      cur.categories.push(rec);
+      catMap.set(c.id, rec.id);
+      addedCat++;
+    }
+
+    const seen = new Set(cur.transactions.map(t => t.id));
+    for (const t of clean.transactions) {
+      if (seen.has(t.id)) continue;
+      cur.transactions.push(Object.assign({}, t, {
+        categoryId: catMap.get(t.categoryId) || t.categoryId,
+        pocketId:   pocketMap.get(t.pocketId) || t.pocketId,
+        toPocketId: t.toPocketId ? (pocketMap.get(t.toPocketId) || t.toPocketId) : null,
+      }));
+      seen.add(t.id);
+      addedTx++;
+    }
+
+    Store.save();
+    return { pockets: addedPocket, categories: addedCat, transactions: addedTx, mode };
+  },
+
+  reset() {
+    Store.data = Store.seed();
+    Store.save();
+  },
+};
+
+  </script>
+  <script>
+/* ============================================================
+   Charts — plain SVG, no libraries, no network.
+   Every renderer returns a markup string; interaction is wired
+   by delegated listeners in ui.js via data-* attributes.
+   ============================================================ */
+
+const Charts = {
+
+  /* ---------------------------------------------------------
+     Donut — composition of a single period
+     --------------------------------------------------------- */
+  donut(items, opts = {}) {
+    const { size = 132, thickness = 16, centerTop = '', centerMain = '' } = opts;
+    const r = (size - thickness) / 2 - 2;
+    const c = size / 2;
+    const circ = 2 * Math.PI * r;
+    const total = items.reduce((s, i) => s + i.value, 0);
+
+    if (!total) {
+      return `<svg class="chart" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
+        <circle cx="${c}" cy="${c}" r="${r}" fill="none"
+                stroke="var(--surface-2)" stroke-width="${thickness}"/>
+        <text x="${c}" y="${c + 4}" text-anchor="middle"
+              fill="var(--text-3)" font-size="11">Belum ada data</text>
+      </svg>`;
+    }
+
+    let offset = 0;
+    const arcs = items.map((item, idx) => {
+      const frac = item.value / total;
+      const len = Math.max(frac * circ - 2, 0.6);   // small gap between slices
+      const seg = `<circle cx="${c}" cy="${c}" r="${r}" fill="none"
+          stroke="${item.color}" stroke-width="${thickness}" stroke-linecap="butt"
+          stroke-dasharray="${len.toFixed(2)} ${(circ - len).toFixed(2)}"
+          stroke-dashoffset="${(-offset).toFixed(2)}"
+          data-slice="${idx}" style="cursor:pointer"><title>${U.escape(item.name)}</title></circle>`;
+      offset += frac * circ;
+      return seg;
+    }).join('');
+
+    return `<svg class="chart" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
+      <g transform="rotate(-90 ${c} ${c})">${arcs}</g>
+      ${centerTop ? `<text x="${c}" y="${c - 6}" text-anchor="middle"
+        fill="var(--text-3)" font-size="9.5" letter-spacing=".04em">${U.escape(centerTop)}</text>` : ''}
+      ${centerMain ? `<text x="${c}" y="${c + 10}" text-anchor="middle"
+        fill="var(--text)" font-size="15" font-weight="650">${U.escape(centerMain)}</text>` : ''}
+    </svg>`;
+  },
+
+  /* ---------------------------------------------------------
+     Grouped bars — income vs expense across time buckets
+     --------------------------------------------------------- */
+  trend(buckets, series, opts = {}) {
+    // The viewBox tracks the rendered width so label text keeps its real
+    // pixel size instead of being scaled up on a wide screen.
+    const W = opts.wide ? 760 : 340;
+    const H = opts.wide ? 250 : 178;
+    const padL = 36, padR = 6, padT = 10, padB = 26;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+    const n = buckets.length;
+
+    if (!n) return Charts.blank(W, H);
+
+    let max = 0;
+    for (const b of buckets)
+      for (const s of series) max = Math.max(max, b.values[s.key] || 0);
+    const scaleMax = niceCeil(max);
+
+    const y = (v) => padT + plotH - (scaleMax ? (v / scaleMax) * plotH : 0);
+    const slot = plotW / n;
+    const maxBar = opts.wide ? 28 : 12;
+    const barW = Math.max(3, Math.min(maxBar, (slot * 0.72) / series.length));
+    const groupW = barW * series.length + (series.length - 1) * 2;
+
+    // horizontal grid + value labels (only the baseline when there is nothing to scale)
+    const levels = scaleMax > 0 ? [0, 0.5, 1] : [0];
+    const grid = levels.map(f => {
+      const gy = padT + plotH - f * plotH;
+      return `<line x1="${padL}" x2="${W - padR}" y1="${gy.toFixed(1)}" y2="${gy.toFixed(1)}"
+                stroke="var(--border-soft)" stroke-width="1"/>
+              <text x="${padL - 6}" y="${(gy + 3.5).toFixed(1)}" text-anchor="end"
+                fill="var(--text-3)" font-size="9">${f === 0 ? '0' : U.compact(scaleMax * f)}</text>`;
+    }).join('');
+
+    const bars = buckets.map((b, i) => {
+      const cx = padL + slot * i + slot / 2;
+      const x0 = cx - groupW / 2;
+      const rects = series.map((s, j) => {
+        const v = b.values[s.key] || 0;
+        const top = y(v);
+        const h = Math.max(v > 0 ? 2 : 0, padT + plotH - top);
+        const bx = x0 + j * (barW + 2);
+        return `<rect x="${bx.toFixed(1)}" y="${(padT + plotH - h).toFixed(1)}"
+            width="${barW.toFixed(1)}" height="${h.toFixed(1)}"
+            rx="${Math.min(3, barW / 2).toFixed(1)}" fill="${s.color}"/>`;
+      }).join('');
+      return rects +
+        `<rect x="${(padL + slot * i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}"
+           height="${plotH}" fill="transparent" data-bucket="${i}" style="cursor:pointer"/>`;
+    }).join('');
+
+    // thin out x labels so they never collide
+    const step = Math.ceil(n / (W / 46));
+    const xlabels = buckets.map((b, i) => {
+      if (i % step !== 0 && i !== n - 1) return '';
+      const cx = padL + slot * i + slot / 2;
+      return `<text x="${cx.toFixed(1)}" y="${H - 10}" text-anchor="middle"
+        fill="var(--text-3)" font-size="9.5">${U.escape(b.label)}</text>`;
+    }).join('');
+
+    return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"
+      data-chart="trend">${grid}${bars}${xlabels}</svg>`;
+  },
+
+  /* ---------------------------------------------------------
+     Area — cumulative net across the period
+     --------------------------------------------------------- */
+  area(points, opts = {}) {
+    const W = opts.wide ? 760 : 340;
+    const H = opts.wide ? 210 : 150;
+    const padL = 36, padR = 6, padT = 12, padB = 24;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+    const n = points.length;
+    if (n < 1) return Charts.blank(W, H);
+
+    const vals = points.map(p => p.value);
+    let lo = Math.min(0, ...vals);
+    let hi = Math.max(0, ...vals);
+    if (hi === lo) hi = lo + 1;
+    const pad = (hi - lo) * 0.12;
+    lo -= pad; hi += pad;
+
+    const x = (i) => n === 1 ? padL + plotW / 2 : padL + (i / (n - 1)) * plotW;
+    const y = (v) => padT + plotH - ((v - lo) / (hi - lo)) * plotH;
+
+    const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' ');
+    const zeroY = y(0);
+    const fill = `${line} L${x(n - 1).toFixed(1)} ${zeroY.toFixed(1)} L${x(0).toFixed(1)} ${zeroY.toFixed(1)} Z`;
+    const last = points[n - 1];
+    const col = last.value >= 0 ? 'var(--income)' : 'var(--expense)';
+
+    const gid = 'ag' + Math.random().toString(36).slice(2, 7);
+    const step = Math.ceil(n / (W / 46));
+    const xlabels = points.map((p, i) => {
+      if (i % step !== 0 && i !== n - 1) return '';
+      return `<text x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle"
+        fill="var(--text-3)" font-size="9.5">${U.escape(p.label)}</text>`;
+    }).join('');
+
+    return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"
+      data-chart="area">
+      <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${col}" stop-opacity=".26"/>
+        <stop offset="100%" stop-color="${col}" stop-opacity="0"/>
+      </linearGradient></defs>
+      <line x1="${padL}" x2="${W - padR}" y1="${zeroY.toFixed(1)}" y2="${zeroY.toFixed(1)}"
+        stroke="var(--border)" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="${padL - 6}" y="${(zeroY + 3.5).toFixed(1)}" text-anchor="end"
+        fill="var(--text-3)" font-size="9">0</text>
+      <text x="${padL - 6}" y="${(padT + 4).toFixed(1)}" text-anchor="end"
+        fill="var(--text-3)" font-size="9">${U.compact(hi)}</text>
+      <path d="${fill}" fill="url(#${gid})"/>
+      <path d="${line}" fill="none" stroke="${col}" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${x(n - 1).toFixed(1)}" cy="${y(last.value).toFixed(1)}" r="3.2"
+        fill="${col}" stroke="var(--bg-elev)" stroke-width="2"/>
+      ${points.map((p, i) => `<rect x="${(x(i) - plotW / n / 2).toFixed(1)}" y="${padT}"
+        width="${(plotW / n).toFixed(1)}" height="${plotH}" fill="transparent"
+        data-point="${i}" style="cursor:pointer"/>`).join('')}
+      ${xlabels}
+    </svg>`;
+  },
+
+  blank(W, H) {
+    return `<svg class="chart" viewBox="0 0 ${W} ${H}">
+      <text x="${W / 2}" y="${H / 2}" text-anchor="middle"
+        fill="var(--text-3)" font-size="11">Belum ada data</text></svg>`;
+  },
+
+  /* ---------------------------------------------------------
+     Ranked horizontal bars (HTML, not SVG — crisper text)
+     --------------------------------------------------------- */
+  rank(items, opts = {}) {
+    const { symbol = 'Rp', hide = false, max = 0, total = 0, clickable = true, activeId = null } = opts;
+    const top = max || Math.max(...items.map(i => i.value), 1);
+
+    return `<div class="rank">${items.map(it => {
+      const w = U.clamp((it.value / top) * 100, 2, 100);
+      const share = total ? U.pct(it.value, total) : 0;
+      const tag = clickable ? 'button' : 'div';
+      return `<${tag} class="rank__row" ${clickable ? `data-cat-jump="${it.id}"` : ''}
+          style="${activeId && activeId !== it.id ? 'opacity:.45' : ''}">
+        ${iconBubble(it.icon, it.color, 34, 18, 'rank__ico')}
+        <span class="rank__mid">
+          <span class="rank__top">
+            <span class="rank__nm">${U.escape(it.name)}</span>
+            <span class="rank__vl">${U.money(it.value, { symbol, hide })}</span>
+          </span>
+          <span class="rank__track"><span class="rank__fill"
+            style="width:${w.toFixed(1)}%;background:${it.color}"></span></span>
+          ${total ? `<span class="rank__pc">${share.toFixed(1)}% dari total</span>` : ''}
+        </span>
+      </${tag}>`;
+    }).join('')}</div>`;
+  },
+
+  /* ---------------------------------------------------------
+     Side-by-side comparison rows (current vs comparison period)
+     --------------------------------------------------------- */
+  compareRows(rows, opts = {}) {
+    const { symbol = 'Rp', hide = false, labelA = 'Sekarang', labelB = 'Pembanding' } = opts;
+    const top = Math.max(...rows.flatMap(r => [r.a, r.b]), 1);
+
+    return `<div>${rows.map(r => {
+      const wa = U.clamp((r.a / top) * 100, 0, 100);
+      const wb = U.clamp((r.b / top) * 100, 0, 100);
+      const d = deltaOf(r.a, r.b);
+      return `<div class="cmp-row">
+        <div class="cmp-row__h">
+          ${iconBubble(r.icon, r.color, 26, 14)}
+          <span class="nm">${U.escape(r.name)}</span>
+          ${deltaBadge(d, r.invert)}
+        </div>
+        <div class="cmp-bar">
+          <span style="width:56px">${U.escape(labelA)}</span>
+          <span class="cmp-bar__track"><span class="cmp-bar__fill"
+            style="width:${wa.toFixed(1)}%;background:${r.color}"></span></span>
+          <span class="cmp-bar__vl">${U.money(r.a, { symbol, hide })}</span>
+        </div>
+        <div class="cmp-bar">
+          <span style="width:56px">${U.escape(labelB)}</span>
+          <span class="cmp-bar__track"><span class="cmp-bar__fill"
+            style="width:${wb.toFixed(1)}%;background:${r.color};opacity:.38"></span></span>
+          <span class="cmp-bar__vl">${U.money(r.b, { symbol, hide })}</span>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  },
+};
+
+/* ---------- helpers ---------- */
+
+/** Round an axis maximum up to something readable (1, 2, 2.5 or 5 × 10ⁿ). */
+function niceCeil(v) {
+  if (v <= 0) return 0;
+  const exp = Math.floor(Math.log10(v));
+  const base = Math.pow(10, exp);
+  const f = v / base;
+  const step = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10;
+  return step * base;
+}
+
+/**
+ * Percentage change from b (comparison) to a (current).
+ * Returns null when there is no baseline to compare against.
+ */
+function deltaOf(a, b) {
+  if (!b) return a ? null : 0;
+  return ((a - b) / Math.abs(b)) * 100;
+}
+
+/**
+ * `invert` flips the colour meaning: for expenses, going up is bad.
+ */
+function deltaBadge(d, invert = false) {
+  if (d === null) return `<span class="delta delta--flat">baru</span>`;
+  if (Math.abs(d) < 0.05) return `<span class="delta delta--flat">0%</span>`;
+  const up = d > 0;
+  const good = invert ? !up : up;
+  const cls = good ? 'delta--up' : 'delta--down';
+  const arrow = icon(up ? 'arrow-up' : 'arrow-down', 11);
+  const val = Math.abs(d) >= 1000 ? '>999' : Math.abs(d).toFixed(Math.abs(d) < 10 ? 1 : 0);
+  return `<span class="delta ${cls}">${arrow}${val}%</span>`;
+}
+
+  </script>
+  <script>
+/* ============================================================
+   PWA glue — installability, offline, and storage durability.
+
+   All of this is optional by design: opened straight from a
+   file:// path none of it runs, and the app behaves exactly as
+   it always has.
+   ============================================================ */
+
+const PWA = {
+  hosted: location.protocol === 'http:' || location.protocol === 'https:',
+  persisted: null,          // null = unknown, true/false once checked
+
+  init() {
+    if (!PWA.hosted) return;   // service workers require a secure origin
+    PWA.linkManifest();
+    PWA.registerWorker();
+    PWA.requestPersistence();
+  },
+
+  /** Added from script so a file:// run doesn't log a 404 for the manifest. */
+  linkManifest() {
+    if (document.querySelector('link[rel="manifest"]')) return;
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = 'manifest.json';
+    document.head.appendChild(link);
+  },
+
+  registerWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch((err) => {
+        console.warn('Service worker tidak aktif:', err.message);
+      });
+    });
+  },
+
+  /**
+   * Asks the browser not to evict our data when storage runs low.
+   * Chrome usually grants this once the app has been installed.
+   * It does NOT protect against the user clearing site data by hand —
+   * that is what the backup reminder is for.
+   */
+  async requestPersistence() {
+    if (!navigator.storage || !navigator.storage.persist) return;
+    try {
+      PWA.persisted = await navigator.storage.persisted();
+      if (!PWA.persisted) PWA.persisted = await navigator.storage.persist();
+    } catch {
+      PWA.persisted = null;
+    }
+  },
+
+  async usage() {
+    if (!navigator.storage || !navigator.storage.estimate) return null;
+    try {
+      const { usage } = await navigator.storage.estimate();
+      return usage || 0;
+    } catch {
+      return null;
+    }
+  },
+
+  /** Human-readable storage state for the settings page. */
+  statusLabel() {
+    if (!PWA.hosted) return 'Dibuka dari berkas lokal';
+    if (PWA.persisted === true) return 'Aman — tidak akan dihapus otomatis';
+    if (PWA.persisted === false) return 'Standar — bisa dihapus jika memori penuh';
+    return 'Memeriksa…';
+  },
+};
+
+/* ============================================================
+   Backup reminder
+   ============================================================ */
+
+const BACKUP_NAG_DAYS = 7;
+
+const Backup = {
+  dismissed: false,          // per session only, so it returns tomorrow
+
+  /**
+   * The last backup as a local 'YYYY-MM-DD' key.
+   * Earlier builds stored a UTC ISO timestamp, whose first ten characters
+   * are the *UTC* date — an export at 06:00 in UTC+7 would read as
+   * yesterday. Both shapes are normalised to the local day here.
+   */
+  lastKey() {
+    const at = Store.data.settings.lastBackupAt;
+    if (!at) return null;
+    return at.length === 10 ? at : U.key(new Date(at));
+  },
+
+  /** Days since the last export, or null if there has never been one. */
+  daysSince() {
+    const key = Backup.lastKey();
+    if (!key) return null;
+    return Math.max(0, Math.round((U.parse(U.today()) - U.parse(key)) / 86400000));
+  },
+
+  /** Only nags once there is something worth losing. */
+  isDue() {
+    if (Backup.dismissed) return false;
+    if (!Store.data.transactions.length) return false;
+    const d = Backup.daysSince();
+    return d === null || d >= BACKUP_NAG_DAYS;
+  },
+
+  banner() {
+    if (!Backup.isDue()) return '';
+    const d = Backup.daysSince();
+    const line = d === null
+      ? 'Belum pernah dicadangkan'
+      : `Cadangan terakhir ${d} hari lalu`;
+
+    return `<div class="nag">
+      <span class="bubble nag__ico">${icon('alert', 18)}</span>
+      <div class="nag__mid">
+        <b>${line}</b>
+        <span>Simpan satu berkas agar catatanmu aman.</span>
+      </div>
+      <div class="nag__act">
+        <button class="btn btn--sm btn--primary" data-act="export">Export</button>
+        <button class="icon-btn" data-act="dismiss-nag"
+          aria-label="Tutup pengingat">${icon('x', 17)}</button>
+      </div>
+    </div>`;
+  },
+};
+
+  </script>
+  <script>
+/* ============================================================
+   UI — shell, navigation and page rendering.
+   Everything is re-rendered from state; interaction runs
+   through one delegated click handler on document.
+   ============================================================ */
+
+const App = {
+  page: 'dashboard',
+
+  filter: {
+    preset: 'thisMonth',
+    custom: { start: U.today(), end: U.today() },
+    categoryIds: [],
+    pocketIds: [],
+    types: [],
+    search: '',
+  },
+
+  compare: 'prev',
+  donutType: 'expense',
+  chartNote: '',
+
+  /* ---------- derived ---------- */
+
+  range() { return resolvePreset(App.filter.preset, App.filter.custom); },
+
+  /** Transactions matching every active filter. */
+  tx() {
+    const r = App.range();
+    return Store.query({
+      start: r.start, end: r.end,
+      types: App.filter.types,
+      categoryIds: App.filter.categoryIds,
+      pocketIds: App.filter.pocketIds,
+      search: App.filter.search,
+    });
+  },
+
+  /** Same filters, but over the comparison window. */
+  txCompare() {
+    const cmp = comparisonRange(App.range(), App.compare, App.filter.preset);
+    if (!cmp) return { list: [], range: null };
+    return {
+      range: cmp,
+      list: Store.query({
+        start: cmp.start, end: cmp.end,
+        types: App.filter.types,
+        categoryIds: App.filter.categoryIds,
+        pocketIds: App.filter.pocketIds,
+        search: App.filter.search,
+      }),
+    };
+  },
+
+  money(n, extra = {}) {
+    return U.money(n, Object.assign({
+      symbol: Store.data.settings.currencySymbol,
+      hide: Store.data.settings.hideAmounts,
+    }, extra));
+  },
+
+  activeFilterCount() {
+    return App.filter.categoryIds.length + App.filter.pocketIds.length +
+           App.filter.types.length + (App.filter.search ? 1 : 0);
+  },
+
+  resetFilters() {
+    App.filter.categoryIds = [];
+    App.filter.pocketIds = [];
+    App.filter.types = [];
+    App.filter.search = '';
+    render();
+  },
+};
+
+/* ============================================================
+   Theme
+   ============================================================ */
+
+/** Matches the desktop breakpoint in styles.css. */
+function isWide() {
+  return window.matchMedia('(min-width: 900px)').matches;
+}
+
+function applyTheme() {
+  const pref = Store.data.settings.theme;
+  const dark = pref === 'dark' ||
+    (pref === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', dark ? '#191917' : '#F6F4F0');
+}
+
+/* ============================================================
+   Toast
+   ============================================================ */
+
+function toast(msg, ico = 'check') {
+  const host = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `${icon(ico, 16)}<span>${U.escape(msg)}</span>`;
+  host.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('is-out');
+    setTimeout(() => el.remove(), 220);
+  }, 2200);
+}
+
+/* ============================================================
+   Shell
+   ============================================================ */
+
+const NAV = [
+  { id: 'dashboard',    label: 'Beranda',   ico: 'dashboard' },
+  { id: 'transactions', label: 'Transaksi', ico: 'list' },
+  { id: '_slot',        label: '',          ico: '' },
+  { id: 'pockets',      label: 'Pocket',    ico: 'wallet' },
+  { id: 'more',         label: 'Lainnya',   ico: 'settings' },
+];
+
+function renderNav() {
+  const items = NAV.map(n => {
+    if (n.id === '_slot') return `<span class="navitem navitem--slot"></span>`;
+    return `<button class="navitem ${App.page === n.id ? 'is-active' : ''}" data-nav="${n.id}">
+      ${icon(n.ico, 21)}<span>${n.label}</span>
+    </button>`;
+  }).join('');
+
+  document.getElementById('nav').innerHTML = `
+    <div class="navitem navitem--brand">
+      <span class="brand-mark">${icon('wallet', 18)}</span>
+      <span>AturinDuit</span>
+    </div>
+    ${items}
+    <button class="fab" data-act="quick-add" aria-label="Catat transaksi">
+      ${icon('plus', 24)}<span class="fab__lb">Catat</span>
+    </button>`;
+}
+
+const PAGE_TITLES = {
+  dashboard:    { t: 'Beranda',     s: () => U.fmtRange(App.range().start, App.range().end) },
+  transactions: { t: 'Transaksi',   s: () => U.fmtRange(App.range().start, App.range().end) },
+  pockets:      { t: 'Pocket',      s: () => `${Store.activePockets().length} pocket aktif` },
+  more:         { t: 'Lainnya',     s: () => 'Kategori, data & tampilan' },
+  categories:   { t: 'Kategori',    s: () => 'Atur pengelompokan sendiri' },
+};
+
+function renderTopbar() {
+  const p = PAGE_TITLES[App.page] || PAGE_TITLES.dashboard;
+  const back = App.page === 'categories';
+  const hidden = Store.data.settings.hideAmounts;
+
+  document.getElementById('topbar').innerHTML = `
+    ${back ? `<button class="icon-btn" data-nav="more">${icon('chevron-left', 20)}</button>` : ''}
+    <div class="topbar__title">
+      <h1>${p.t}</h1>
+      <p>${U.escape(p.s())}</p>
+    </div>
+    <button class="icon-btn ${hidden ? 'is-on' : ''}" data-act="toggle-hide"
+      aria-label="Sembunyikan nominal">${icon(hidden ? 'eye-off' : 'eye', 19)}</button>
+    ${App.page === 'dashboard' || App.page === 'transactions'
+      ? `<button class="icon-btn ${App.activeFilterCount() ? 'is-on' : ''}" data-act="open-filter"
+          aria-label="Filter">${icon('filter', 19)}</button>` : ''}`;
+}
+
+function render() {
+  applyTheme();
+  renderNav();
+  renderTopbar();
+  const view = document.getElementById('view');
+  view.innerHTML = ({
+    dashboard:    renderDashboard,
+    transactions: renderTransactions,
+    pockets:      renderPockets,
+    more:         renderMore,
+    categories:   renderCategories,
+  }[App.page] || renderDashboard)();
+  view.scrollTop = 0;
+}
+
+function go(page) {
+  App.page = page;
+  App.chartNote = '';
+  render();   // render() already returns .view to the top
+}
+
+/* ============================================================
+   Shared fragments
+   ============================================================ */
+
+function filterBar() {
+  const f = App.filter;
+  const catN = f.categoryIds.length;
+  const pocN = f.pocketIds.length;
+  const typeN = f.types.length;
+
+  return `<div class="filterbar"><div class="chip-scroll">
+    <button class="chip is-active" data-act="open-period">
+      ${icon('calendar', 15)}${presetLabel(f.preset)}${icon('chevron-down', 14)}
+    </button>
+    <button class="chip ${catN ? 'is-active' : ''}" data-act="open-cat-filter">
+      ${icon('layers', 15)}Kategori
+      ${catN ? `<span class="chip--count">${catN}</span>` : icon('chevron-down', 14)}
+    </button>
+    <button class="chip ${pocN ? 'is-active' : ''}" data-act="open-pocket-filter">
+      ${icon('wallet', 15)}Pocket
+      ${pocN ? `<span class="chip--count">${pocN}</span>` : icon('chevron-down', 14)}
+    </button>
+    <button class="chip ${typeN ? 'is-active' : ''}" data-act="cycle-type">
+      ${icon('arrow-left-right', 15)}${typeN ? typeLabel(f.types[0]) : 'Semua jenis'}
+    </button>
+    ${App.activeFilterCount() ? `<button class="chip" data-act="reset-filter">
+      ${icon('x', 14)}Reset</button>` : ''}
+  </div></div>`;
+}
+
+function typeLabel(t) {
+  return { expense: 'Pengeluaran', income: 'Pemasukan', transfer: 'Transfer' }[t] || 'Semua jenis';
+}
+
+function emptyState(title, msg, ico = 'list') {
+  return `<div class="empty">
+    <div class="empty__ico">${icon(ico, 24)}</div>
+    <b>${U.escape(title)}</b><p>${U.escape(msg)}</p>
+  </div>`;
+}
+
+function txRow(t) {
+  const cat = Store.category(t.categoryId);
+  const pocket = Store.pocket(t.pocketId);
+
+  if (t.type === 'transfer') {
+    const to = Store.pocket(t.toPocketId);
+    return `<button class="tx-item" data-tx="${t.id}">
+      <span class="bubble bubble--transfer tx-item__ico">${icon('arrow-left-right', 19)}</span>
+      <span class="tx-item__mid">
+        <span class="tx-item__t">Transfer</span>
+        <span class="tx-item__s">${U.escape(pocket ? pocket.name : '—')} → ${U.escape(to ? to.name : '—')}</span>
+      </span>
+      <span class="tx-item__a a-tf">${App.money(t.amount)}</span>
+    </button>`;
+  }
+
+  const inc = t.type === 'income';
+  return `<button class="tx-item" data-tx="${t.id}">
+    ${iconBubble(cat ? cat.icon : 'more-horizontal', cat ? cat.color : '#9EA79B', 38, 19, 'tx-item__ico')}
+    <span class="tx-item__mid">
+      <span class="tx-item__t">${U.escape(t.note || (cat ? cat.name : 'Transaksi'))}</span>
+      <span class="tx-item__s">${t.note && cat ? U.escape(cat.name) + ' · ' : ''}${U.escape(pocket ? pocket.name : '—')}</span>
+    </span>
+    <span class="tx-item__a ${inc ? 'a-in' : 'a-out'}">
+      ${inc ? '+' : '−'}${App.money(t.amount).replace('−', '')}
+    </span>
+  </button>`;
+}
+
+function txGroups(list) {
+  if (!list.length) return emptyState('Belum ada transaksi', 'Catat pengeluaran pertamamu dengan tombol +');
+
+  const byDate = new Map();
+  for (const t of list) {
+    if (!byDate.has(t.date)) byDate.set(t.date, []);
+    byDate.get(t.date).push(t);
+  }
+
+  return [...byDate.entries()].map(([date, items]) => {
+    const net = items.reduce((s, t) =>
+      s + (t.type === 'income' ? t.amount : t.type === 'expense' ? -t.amount : 0), 0);
+    return `<div class="tx-group">
+      <div class="tx-group__head">
+        <b>${U.escape(U.fmtDateRelative(date))}</b>
+        <span class="${net > 0 ? 'a-in' : ''}">${App.money(net, { sign: true })}</span>
+      </div>
+      <div class="tx-list">${items.map(txRow).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ============================================================
+   Page — Dashboard
+   ============================================================ */
+
+function renderDashboard() {
+  const range = App.range();
+  const list = App.tx();
+  const tot = Store.totals(list);
+  const symbolHidden = Store.data.settings.hideAmounts;
+
+  /* ---- hero ---- */
+  const hero = `<div class="hero">
+    <div class="hero__label">${icon('wallet', 14)} Total saldo semua pocket</div>
+    <div class="hero__value">${App.money(Store.totalBalance())}</div>
+    <div class="hero__split">
+      <div class="hero__cell">
+        <span class="bubble bubble--income">${icon('arrow-down-right', 17)}</span>
+        <span><span class="k">Pemasukan</span><br><span class="v a-in">${App.money(tot.income)}</span></span>
+      </div>
+      <div class="hero__cell">
+        <span class="bubble bubble--expense">${icon('arrow-up-right', 17)}</span>
+        <span><span class="k">Pengeluaran</span><br><span class="v">${App.money(tot.expense)}</span></span>
+      </div>
+    </div>
+    <div class="spread" style="padding-bottom:12px">
+      <span class="tiny muted">Selisih periode ini</span>
+      <b class="num ${tot.net >= 0 ? 'a-in' : ''}" style="font-size:15px">
+        ${App.money(tot.net, { sign: true })}</b>
+    </div>
+  </div>`;
+
+  /* ---- quick add ---- */
+  const quick = `<div class="section">
+    <div class="section__head"><h2>Catat cepat</h2>
+      <button class="link" data-act="edit-quick">Atur${icon('chevron-right', 13)}</button>
+    </div>
+    <div class="quick-grid">${quickTiles()}</div>
+  </div>`;
+
+  /* ---- trend ---- */
+  const { granularity, buckets } = buildBuckets(
+    range.start || earliestDate(), range.end || U.today());
+  for (const b of buckets) b.values = { income: 0, expense: 0 };
+  for (const t of list) {
+    if (t.type === 'transfer') continue;
+    const b = buckets.find(x => t.date >= x.start && t.date <= x.end);
+    if (b) b.values[t.type] += Number(t.amount) || 0;
+  }
+  const series = [
+    { key: 'income',  color: 'var(--income)',  label: 'Pemasukan' },
+    { key: 'expense', color: 'var(--expense)', label: 'Pengeluaran' },
+  ].filter(s => !App.filter.types.length || App.filter.types.includes(s.key));
+  App._buckets = buckets;
+
+  const trendCard = `<div class="card">
+    <div class="card__head">
+      <h3>Arus kas</h3>
+      <span class="tiny muted">${GRANULARITY_LABEL[granularity]}</span>
+    </div>
+    <div class="wrap-gap tiny muted" style="margin:-6px 0 10px">
+      ${series.map(s => `<span class="inline"><i style="width:9px;height:9px;border-radius:3px;
+        background:${s.color};display:inline-block"></i>${s.label}</span>`).join('')}
+    </div>
+    ${Charts.trend(buckets, series, { wide: isWide() })}
+    <div class="chart-note" id="note-trend">${U.escape(App.chartNote)}</div>
+  </div>`;
+
+  /* ---- composition donut ---- */
+  const donutItems = Store.byCategory(list, App.donutType);
+  const donutTotal = donutItems.reduce((s, i) => s + i.value, 0);
+  const shown = donutItems.slice(0, 6);
+  const restVal = donutItems.slice(6).reduce((s, i) => s + i.value, 0);
+  if (restVal > 0) shown.push({ id: '_rest', name: 'Lainnya', value: restVal, color: '#B6AE96', icon: 'more-horizontal' });
+  App._donut = shown;
+
+  const donutCard = `<div class="card">
+    <div class="card__head"><h3>Komposisi</h3></div>
+    <div class="segmented" style="margin-bottom:14px">
+      <button data-act="donut-type" data-v="expense" data-kind="expense"
+        class="${App.donutType === 'expense' ? 'is-active' : ''}">Pengeluaran</button>
+      <button data-act="donut-type" data-v="income" data-kind="income"
+        class="${App.donutType === 'income' ? 'is-active' : ''}">Pemasukan</button>
+    </div>
+    <div class="donut-wrap">
+      ${Charts.donut(shown, {
+        centerTop: App.donutType === 'expense' ? 'KELUAR' : 'MASUK',
+        centerMain: symbolHidden ? '••••' : U.compact(donutTotal),
+      })}
+      <div class="legend">${shown.length ? shown.map(i => `
+        <button class="legend__row" ${i.id !== '_rest' ? `data-cat-jump="${i.id}"` : ''}>
+          <span class="legend__dot" style="background:${i.color}"></span>
+          <span class="legend__lb">${U.escape(i.name)}</span>
+          <span class="legend__vl">${symbolHidden ? '••••' : U.compact(i.value)}</span>
+          <span class="legend__pc">${U.pct(i.value, donutTotal).toFixed(0)}%</span>
+        </button>`).join('') : `<p class="tiny muted">Belum ada data pada periode ini.</p>`}
+      </div>
+    </div>
+  </div>`;
+
+  /* ---- category ranking ---- */
+  const rankItems = donutItems.slice(0, 8);
+  const rankCard = `<div class="card">
+    <div class="card__head">
+      <h3>Peringkat kategori</h3>
+      <span class="tiny muted">${App.donutType === 'expense' ? 'Pengeluaran' : 'Pemasukan'}</span>
+    </div>
+    ${rankItems.length
+      ? Charts.rank(rankItems, {
+          symbol: Store.data.settings.currencySymbol,
+          hide: symbolHidden,
+          total: donutTotal,
+        })
+      : `<p class="tiny muted">Belum ada data pada periode ini.</p>`}
+  </div>`;
+
+  /* ---- comparison ---- */
+  const comparison = renderComparison(list, tot);
+
+  /* ---- cumulative net ---- */
+  const cum = [];
+  let run = 0;
+  for (const b of buckets) {
+    run += (b.values.income || 0) - (b.values.expense || 0);
+    cum.push({ label: b.label, value: run });
+  }
+  App._cum = cum;
+  const areaCard = `<div class="card">
+    <div class="card__head"><h3>Akumulasi selisih</h3>
+      <span class="tiny muted">${GRANULARITY_LABEL[granularity]}</span></div>
+    <p class="card__sub">Pemasukan dikurangi pengeluaran, ditumpuk sepanjang periode.</p>
+    ${Charts.area(cum, { wide: isWide() })}
+    <div class="chart-note" id="note-area">${U.escape(App.chartNote)}</div>
+  </div>`;
+
+  /* ---- recent ---- */
+  const recent = list.slice(0, 6);
+  const recentCard = `<div class="section">
+    <div class="section__head"><h2>Transaksi terakhir</h2>
+      <button class="link" data-nav="transactions">Semua${icon('chevron-right', 13)}</button>
+    </div>
+    ${recent.length ? `<div class="tx-list">${recent.map(txRow).join('')}</div>`
+      : emptyState('Belum ada transaksi', 'Tekan tombol + untuk mulai mencatat.')}
+  </div>`;
+
+  return `${filterBar()}${Backup.banner()}${hero}${quick}
+    <div class="section"><div class="dash-grid">
+      <div class="span2">${trendCard}</div>
+      ${donutCard}
+      ${rankCard}
+      <div class="span2">${comparison}</div>
+      <div class="span2">${areaCard}</div>
+    </div></div>
+    ${recentCard}`;
+}
+
+function earliestDate() {
+  const dates = Store.data.transactions.map(t => t.date);
+  return dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : U.today();
+}
+
+function quickTiles() {
+  const s = Store.data.settings;
+  let ids = s.quickCategoryIds.filter(id => {
+    const c = Store.category(id);
+    return c && !c.archived;
+  });
+
+  if (!ids.length) {
+    // auto-pick: most used in the last 90 days, then fill from defaults
+    const since = U.key(U.addDays(new Date(), -90));
+    const count = new Map();
+    for (const t of Store.data.transactions) {
+      if (t.date < since || t.type === 'transfer' || !t.categoryId) continue;
+      count.set(t.categoryId, (count.get(t.categoryId) || 0) + 1);
+    }
+    ids = [...count.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
+    for (const c of Store.categoriesOf('expense')) {
+      if (ids.length >= 7) break;
+      if (!ids.includes(c.id)) ids.push(c.id);
+    }
+  }
+
+  const tiles = ids.slice(0, 7).map(id => {
+    const c = Store.category(id);
+    if (!c) return '';
+    return `<button class="quick-tile" data-quick="${c.id}">
+      ${iconBubble(c.icon, c.color, 40, 21, 'quick-tile__ico')}
+      <span class="quick-tile__lb">${U.escape(c.name)}</span>
+    </button>`;
+  }).join('');
+
+  return tiles + `<button class="quick-tile quick-tile--add" data-act="quick-add">
+    <span class="bubble quick-tile__ico">${icon('plus', 21)}</span>
+    <span class="quick-tile__lb">Lainnya</span>
+  </button>`;
+}
+
+function renderComparison(list, tot) {
+  if (App.compare === 'none' || App.filter.preset === 'all') {
+    return `<div class="card">
+      <div class="card__head"><h3>Perbandingan</h3></div>
+      ${compareModeSwitch()}
+      <p class="tiny muted" style="margin-top:12px">
+        Pilih mode pembanding untuk melihat selisih antar periode.</p>
+    </div>`;
+  }
+
+  const { list: prev, range: cmpRange } = App.txCompare();
+  const prevTot = Store.totals(prev);
+
+  const cards = [
+    { k: 'Pemasukan',  a: tot.income,  b: prevTot.income,  invert: false, ico: 'arrow-down-right' },
+    { k: 'Pengeluaran',a: tot.expense, b: prevTot.expense, invert: true,  ico: 'arrow-up-right' },
+    { k: 'Selisih',    a: tot.net,     b: prevTot.net,     invert: false, ico: 'scale' },
+  ].map(c => `<div class="cmp-card">
+      <div class="cmp-card__k">${icon(c.ico, 13)}${c.k}</div>
+      <div class="cmp-card__v num">${App.money(c.a, { sign: c.k === 'Selisih' })}</div>
+      <div class="inline">
+        ${deltaBadge(deltaOf(c.a, c.b), c.invert)}
+        <span class="cmp-card__p">dari ${App.money(c.b)}</span>
+      </div>
+    </div>`).join('');
+
+  // per-category comparison for the currently selected side
+  const curCats = Store.byCategory(list, App.donutType);
+  const prevCats = Store.byCategory(prev, App.donutType);
+  const prevMap = new Map(prevCats.map(c => [c.id, c.value]));
+  const ids = new Set([...curCats.map(c => c.id), ...prevCats.map(c => c.id)]);
+
+  const rows = [...ids].map(id => {
+    const cur = curCats.find(c => c.id === id);
+    const ref = prevCats.find(c => c.id === id);
+    const meta = cur || ref;
+    return {
+      id, name: meta.name, icon: meta.icon, color: meta.color,
+      a: cur ? cur.value : 0,
+      b: prevMap.get(id) || 0,
+      invert: App.donutType === 'expense',
+    };
+  }).sort((x, y) => Math.max(y.a, y.b) - Math.max(x.a, x.b)).slice(0, 6);
+
+  return `<div class="card">
+    <div class="card__head"><h3>Perbandingan</h3></div>
+    <p class="card__sub">
+      ${U.escape(U.fmtRange(App.range().start, App.range().end))}
+      &nbsp;vs&nbsp; ${U.escape(U.fmtRange(cmpRange.start, cmpRange.end))}
+    </p>
+    ${compareModeSwitch()}
+    <div class="cmp-grid" style="margin-top:14px">${cards}</div>
+    ${rows.length ? `
+      <div class="divider"></div>
+      <div class="section__head" style="margin-bottom:2px">
+        <h2>Per kategori · ${App.donutType === 'expense' ? 'pengeluaran' : 'pemasukan'}</h2>
+      </div>
+      ${Charts.compareRows(rows, {
+        symbol: Store.data.settings.currencySymbol,
+        hide: Store.data.settings.hideAmounts,
+        labelA: 'Sekarang',
+        labelB: cmpRange.label === 'Periode sebelumnya' ? 'Sebelumnya' : cmpRange.label,
+      })}` : ''}
+  </div>`;
+}
+
+function compareModeSwitch() {
+  const opt = [
+    ['prev', 'Periode sebelumnya'],
+    ['yoy',  'Tahun lalu'],
+    ['none', 'Nonaktif'],
+  ];
+  return `<div class="segmented">${opt.map(([v, l]) =>
+    `<button data-act="compare-mode" data-v="${v}"
+      class="${App.compare === v ? 'is-active' : ''}">${l}</button>`).join('')}</div>`;
+}
+
+/* ============================================================
+   Page — Transactions
+   ============================================================ */
+
+function renderTransactions() {
+  const list = App.tx();
+  const tot = Store.totals(list);
+
+  return `${filterBar()}
+    <div class="field" style="margin-top:4px">
+      <input class="input" id="search" type="search" placeholder="Cari catatan atau kategori…"
+        value="${U.escape(App.filter.search)}" data-act="search">
+    </div>
+    <div class="card">
+      <div class="spread">
+        <div><div class="tiny muted">Pemasukan</div>
+          <b class="num a-in">${App.money(tot.income)}</b></div>
+        <div style="text-align:right"><div class="tiny muted">Pengeluaran</div>
+          <b class="num">${App.money(tot.expense)}</b></div>
+      </div>
+      <div class="divider"></div>
+      <div class="spread">
+        <span class="tiny muted">${tot.count} transaksi</span>
+        <b class="num ${tot.net >= 0 ? 'a-in' : ''}">${App.money(tot.net, { sign: true })}</b>
+      </div>
+    </div>
+    ${txGroups(list)}`;
+}
+
+/* ============================================================
+   Page — Pockets
+   ============================================================ */
+
+function renderPockets() {
+  const pockets = Store.activePockets();
+  const total = Store.totalBalance();
+
+  const cards = pockets.map(p => {
+    const bal = Store.pocketBalance(p.id);
+    const isDefault = Store.data.settings.defaultPocketId === p.id;
+    const goal = Number(p.target) || 0;
+    const pctGoal = goal ? U.clamp((bal / goal) * 100, 0, 100) : 0;
+
+    return `<button class="pocket-card" data-pocket="${p.id}">
+      ${iconBubble(p.icon, p.color, 44, 22, 'pocket-card__ico')}
+      <span class="pocket-card__mid">
+        <span class="pocket-card__nm">${U.escape(p.name)}
+          ${isDefault ? '<span class="tag">default</span>' : ''}</span>
+        <span class="pocket-card__sub">${POCKET_KIND[p.kind] || 'Lainnya'}</span>
+        ${goal ? `<span class="goal-track"><span class="goal-fill"
+            style="width:${pctGoal}%;background:${p.color}"></span></span>
+          <span class="pocket-card__sub">${pctGoal.toFixed(0)}% dari target ${App.money(goal)}</span>` : ''}
+      </span>
+      <span class="pocket-card__bal ${bal < 0 ? '' : ''}">${App.money(bal)}</span>
+    </button>`;
+  }).join('');
+
+  const archived = Store.data.pockets.filter(p => p.archived);
+
+  return `<div class="hero">
+      <div class="hero__label">${icon('coins', 14)} Total saldo</div>
+      <div class="hero__value">${App.money(total)}</div>
+      <div style="padding-bottom:14px" class="tiny muted">
+        Saldo dihitung dari saldo awal + seluruh transaksi.</div>
+    </div>
+
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn--soft" data-act="transfer">${icon('arrow-left-right', 18)}Transfer</button>
+      <button class="btn btn--soft" data-act="new-pocket">${icon('plus', 18)}Pocket baru</button>
+    </div>
+
+    <div class="section">
+      <div class="section__head"><h2>Pocket kamu</h2></div>
+      ${cards || emptyState('Belum ada pocket', 'Tambahkan pocket untuk mulai mencatat.', 'wallet')}
+    </div>
+
+    ${archived.length ? `<div class="section">
+      <div class="section__head"><h2>Diarsipkan</h2></div>
+      <div class="rows">${archived.map(p => `
+        <button class="row" data-pocket="${p.id}">
+          ${iconBubble(p.icon, p.color, 34, 18, 'row__ico')}
+          <span class="row__mid"><span class="row__t">${U.escape(p.name)}</span>
+            <span class="row__s">${App.money(Store.pocketBalance(p.id))}</span></span>
+          <span class="row__r">${icon('chevron-right', 16)}</span>
+        </button>`).join('')}</div>
+    </div>` : ''}`;
+}
+
+const POCKET_KIND = {
+  cash: 'Tunai', bank: 'Rekening bank', ewallet: 'E-wallet',
+  savings: 'Tabungan', invest: 'Investasi', other: 'Lainnya',
+};
+
+/* ============================================================
+   Page — Categories
+   ============================================================ */
+
+function renderCategories() {
+  const build = (type) => {
+    const cats = Store.categoriesOf(type);
+    return `<div class="section">
+      <div class="section__head">
+        <h2>${type === 'expense' ? 'Pengeluaran' : 'Pemasukan'}</h2>
+        <button class="link" data-act="new-category" data-v="${type}">
+          ${icon('plus', 14)}Tambah</button>
+      </div>
+      <div class="rows">${cats.map(c => `
+        <button class="row" data-category="${c.id}">
+          ${iconBubble(c.icon, c.color, 34, 18, 'row__ico')}
+          <span class="row__mid">
+            <span class="row__t">${U.escape(c.name)}</span>
+            <span class="row__s">${Store.categoryUsage(c.id)} transaksi</span>
+          </span>
+          <span class="row__r">${icon('pencil', 15)}</span>
+        </button>`).join('') || emptyState('Kosong', 'Belum ada kategori.', 'layers')}
+      </div>
+    </div>`;
+  };
+
+  const archived = Store.data.categories.filter(c => c.archived);
+
+  return `<p class="tiny muted" style="margin:4px 2px 0">
+      Ketuk kategori untuk mengubah nama, ikon, dan warnanya. Kategori yang sudah
+      dipakai akan diarsipkan (bukan dihapus) agar riwayat tetap utuh.
+    </p>
+    ${build('expense')}
+    ${build('income')}
+    ${archived.length ? `<div class="section">
+      <div class="section__head"><h2>Diarsipkan</h2></div>
+      <div class="rows">${archived.map(c => `
+        <button class="row" data-category="${c.id}">
+          ${iconBubble(c.icon, c.color, 34, 18, 'row__ico')}
+          <span class="row__mid"><span class="row__t">${U.escape(c.name)}</span>
+            <span class="row__s">${c.type === 'expense' ? 'Pengeluaran' : 'Pemasukan'} ·
+              ${Store.categoryUsage(c.id)} transaksi</span></span>
+          <span class="row__r">${icon('archive', 15)}</span>
+        </button>`).join('')}</div>
+    </div>` : ''}`;
+}
+
+/* ============================================================
+   Page — More / settings
+   ============================================================ */
+
+function renderMore() {
+  const s = Store.data.settings;
+  const d = Store.data;
+  const lastKey = Backup.lastKey();
+  const last = lastKey
+    ? `${U.fmtDate(lastKey, 'medium')} · ${Backup.daysSince()} hari lalu`
+    : 'belum pernah';
+
+  const themeOpts = [['auto', 'Ikuti sistem', 'monitor'], ['light', 'Terang', 'sun'], ['dark', 'Gelap', 'moon']];
+
+  return `
+    <div class="section">
+      <div class="section__head"><h2>Pengelompokan</h2></div>
+      <div class="rows">
+        <button class="row" data-nav="categories">
+          <span class="bubble row__ico">${icon('layers', 18)}</span>
+          <span class="row__mid"><span class="row__t">Kategori</span>
+            <span class="row__s">${d.categories.filter(c => !c.archived).length} kategori aktif</span></span>
+          <span class="row__r">${icon('chevron-right', 16)}</span>
+        </button>
+        <button class="row" data-act="edit-quick">
+          <span class="bubble row__ico">${icon('star', 18)}</span>
+          <span class="row__mid"><span class="row__t">Pintasan catat cepat</span>
+            <span class="row__s">${s.quickCategoryIds.length
+              ? `${s.quickCategoryIds.length} kategori dipilih` : 'Otomatis dari yang sering dipakai'}</span></span>
+          <span class="row__r">${icon('chevron-right', 16)}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__head"><h2>Data</h2></div>
+      <div class="rows">
+        <button class="row" data-act="export">
+          <span class="bubble row__ico">${icon('download', 18)}</span>
+          <span class="row__mid"><span class="row__t">Export ke satu file</span>
+            <span class="row__s">Simpan .json lalu upload ke Google Drive</span></span>
+          <span class="row__r">${icon('chevron-right', 16)}</span>
+        </button>
+        <button class="row" data-act="import">
+          <span class="bubble row__ico">${icon('upload', 18)}</span>
+          <span class="row__mid"><span class="row__t">Import dari file</span>
+            <span class="row__s">Pulihkan atau gabungkan data</span></span>
+          <span class="row__r">${icon('chevron-right', 16)}</span>
+        </button>
+        <div class="row">
+          <span class="bubble row__ico">${icon('clock', 18)}</span>
+          <span class="row__mid"><span class="row__t">Backup terakhir</span>
+            <span class="row__s">${U.escape(last)}</span></span>
+        </div>
+        <div class="row">
+          <span class="bubble row__ico">${icon('shield', 18)}</span>
+          <span class="row__mid"><span class="row__t">Ketahanan penyimpanan</span>
+            <span class="row__s">${U.escape(PWA.statusLabel())}</span></span>
+        </div>
+        <div class="row">
+          <span class="bubble row__ico">${icon('chart-bar', 18)}</span>
+          <span class="row__mid"><span class="row__t">Isi data</span>
+            <span class="row__s">${d.transactions.length} transaksi ·
+              ${d.pockets.length} pocket · ${d.categories.length} kategori</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__head"><h2>Tampilan</h2></div>
+      <div class="rows">
+        <div class="row">
+          <span class="bubble row__ico">${icon('sun', 18)}</span>
+          <span class="row__mid"><span class="row__t">Tema</span></span>
+        </div>
+        <div style="padding:0 14px 14px">
+          <div class="segmented">${themeOpts.map(([v, l, ic]) =>
+            `<button data-act="set-theme" data-v="${v}"
+              class="${s.theme === v ? 'is-active' : ''}">${icon(ic, 15)}${l}</button>`).join('')}</div>
+        </div>
+        <button class="row" data-act="toggle-hide">
+          <span class="bubble row__ico">${icon('eye-off', 18)}</span>
+          <span class="row__mid"><span class="row__t">Sembunyikan nominal</span>
+            <span class="row__s">Untuk buka aplikasi di tempat ramai</span></span>
+          <span class="switch ${s.hideAmounts ? 'is-on' : ''}"></span>
+        </button>
+        <button class="row" data-act="edit-symbol">
+          <span class="bubble row__ico">${icon('banknote', 18)}</span>
+          <span class="row__mid"><span class="row__t">Simbol mata uang</span>
+            <span class="row__s">Saat ini: ${U.escape(s.currencySymbol)}</span></span>
+          <span class="row__r">${icon('chevron-right', 16)}</span>
+        </button>
+        <button class="row" data-act="edit-profile">
+          <span class="bubble row__ico">${icon('users', 18)}</span>
+          <span class="row__mid"><span class="row__t">Nama profil</span>
+            <span class="row__s">${s.profileName
+              ? U.escape(s.profileName) + ' · dipakai menamai berkas backup'
+              : 'Belum diisi — berguna kalau berdua pakai aplikasi ini'}</span></span>
+          <span class="row__r">${icon('chevron-right', 16)}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section__head"><h2>Zona berbahaya</h2></div>
+      <div class="rows">
+        <button class="row" data-act="reset-all">
+          <span class="bubble bubble--expense row__ico">${icon('trash', 18)}</span>
+          <span class="row__mid"><span class="row__t" style="color:var(--expense)">Hapus semua data</span>
+            <span class="row__s">Kembali ke kondisi awal</span></span>
+        </button>
+      </div>
+    </div>
+
+    <p class="tiny muted" style="text-align:center;margin:22px 0 8px">
+      AturinDuit · data tersimpan di perangkat ini<br>Export rutin agar aman.
+    </p>`;
+}
+
+  </script>
+  <script>
+/* ============================================================
+   Sheets — every modal in the app.
+   A small stack lets one sheet open another and step back
+   without losing the state underneath.
+   ============================================================ */
+
+const Sheet = {
+  stack: [],
+
+  get el()    { return document.getElementById('sheet'); },
+  get scrim() { return document.getElementById('scrim'); },
+
+  open(config) {
+    Sheet.stack.push(config);
+    Sheet.paint();
+    // If the sheet is dismissed before this frame lands (a fast double tap),
+    // the stack is already empty — don't re-open a scrim over nothing.
+    requestAnimationFrame(() => {
+      if (!Sheet.stack.length) return;
+      Sheet.el.classList.add('is-open');
+      Sheet.scrim.classList.add('is-open');
+    });
+  },
+
+  /** Re-render the top sheet in place (state changed underneath). */
+  refresh() {
+    if (Sheet.stack.length) Sheet.paint();
+  },
+
+  paint() {
+    const cfg = Sheet.stack[Sheet.stack.length - 1];
+    const canBack = Sheet.stack.length > 1;
+
+    Sheet.el.innerHTML = `
+      <div class="sheet__grip"></div>
+      <div class="sheet__head">
+        ${canBack ? `<button class="icon-btn" data-act="sheet-back">${icon('chevron-left', 19)}</button>` : ''}
+        <h3>${U.escape(cfg.title)}</h3>
+        ${cfg.headAction || ''}
+        <button class="icon-btn" data-act="sheet-close">${icon('x', 19)}</button>
+      </div>
+      <div class="sheet__body">${cfg.body()}</div>
+      ${cfg.foot ? `<div class="sheet__foot">${cfg.foot()}</div>` : ''}`;
+
+    if (cfg.onMount) cfg.onMount(Sheet.el);
+  },
+
+  back() {
+    if (Sheet.stack.length <= 1) return Sheet.close();
+    Sheet.stack.pop();
+    Sheet.paint();
+  },
+
+  close() {
+    Sheet.el.classList.remove('is-open');
+    Sheet.scrim.classList.remove('is-open');
+    Sheet.stack = [];
+    setTimeout(() => { if (!Sheet.stack.length) Sheet.el.innerHTML = ''; }, 280);
+  },
+};
+
+/* ============================================================
+   Quick add / edit transaction
+   ============================================================ */
+
+const Draft = {
+  type: 'expense',
+  amount: '',
+  categoryId: null,
+  pocketId: null,
+  toPocketId: null,
+  date: U.today(),
+  note: '',
+  editingId: null,
+
+  reset(patch = {}) {
+    const def = Store.defaultPocket();
+    Object.assign(Draft, {
+      type: 'expense', amount: '', categoryId: null,
+      pocketId: def ? def.id : null, toPocketId: null,
+      date: U.today(), note: '', editingId: null,
+    }, patch);
+    if (!Draft.categoryId && Draft.type !== 'transfer') {
+      const first = Store.categoriesOf(Draft.type)[0];
+      Draft.categoryId = first ? first.id : null;
+    }
+  },
+
+  value() { return Number(Draft.amount || 0); },
+};
+
+function openQuickAdd(patch = {}) {
+  Draft.reset(patch);
+  Sheet.open({
+    title: Draft.editingId ? 'Ubah transaksi' : 'Catat transaksi',
+    body: quickAddBody,
+    foot: quickAddFoot,
+    onMount: bindQuickAdd,
+  });
+}
+
+function openEditTx(id) {
+  const t = Store.data.transactions.find(x => x.id === id);
+  if (!t) return;
+  Draft.reset({
+    type: t.type, amount: String(t.amount || ''), categoryId: t.categoryId,
+    pocketId: t.pocketId, toPocketId: t.toPocketId, date: t.date,
+    note: t.note || '', editingId: t.id,
+  });
+  Sheet.open({
+    title: 'Ubah transaksi',
+    body: quickAddBody,
+    foot: quickAddFoot,
+    onMount: bindQuickAdd,
+  });
+}
+
+function quickAddBody() {
+  const sym = Store.data.settings.currencySymbol;
+  const amountStr = Draft.amount ? Number(Draft.amount).toLocaleString('id-ID') : '0';
+  const isTransfer = Draft.type === 'transfer';
+  const cats = Store.categoriesOf(Draft.type === 'income' ? 'income' : 'expense');
+  const pockets = Store.activePockets();
+
+  const typeSwitch = `<div class="segmented">
+    ${[['expense', 'Pengeluaran'], ['income', 'Pemasukan'], ['transfer', 'Transfer']]
+      .map(([v, l]) => `<button data-act="draft-type" data-v="${v}" data-kind="${v}"
+        class="${Draft.type === v ? 'is-active' : ''}">${l}</button>`).join('')}
+  </div>`;
+
+  const amountView = `<div class="amount-view">
+    <div class="amount-view__k">${isTransfer ? 'Jumlah transfer'
+      : Draft.type === 'income' ? 'Nominal masuk' : 'Nominal keluar'}</div>
+    <div class="amount-view__v num ${Draft.amount ? '' : 'is-zero'}">
+      <small>${U.escape(sym)}</small>${amountStr}
+    </div>
+  </div>`;
+
+  const quickAmt = `<div class="quickamt">
+    ${[1000, 2000, 5000, 10000, 20000, 50000, 100000, 500000].map(v =>
+      `<button data-act="amt-add" data-v="${v}">+${U.compact(v)}</button>`).join('')}
+    <button data-act="amt-clear">${icon('x', 13)} Kosongkan</button>
+  </div>`;
+
+  const catGrid = isTransfer ? '' : `<div class="field">
+    <label class="field__lb">Kategori</label>
+    <div class="catgrid">
+      ${cats.map(c => `<button class="catcell ${Draft.categoryId === c.id ? 'is-active' : ''}"
+        data-act="draft-cat" data-v="${c.id}">
+        ${iconBubble(c.icon, c.color, 42, 21, 'catcell__ico')}
+        <span class="catcell__lb">${U.escape(c.name)}</span>
+      </button>`).join('')}
+      <button class="catcell" data-act="new-category" data-v="${Draft.type}">
+        <span class="bubble catcell__ico" style="border:1px dashed var(--border)">${icon('plus', 21)}</span>
+        <span class="catcell__lb">Baru</span>
+      </button>
+    </div>
+  </div>`;
+
+  const pocketRow = (labelText, key) => `<div class="field">
+    <label class="field__lb">${labelText}</label>
+    <div class="chip-scroll" style="margin:0;padding:0">
+      ${pockets.map(p => `<button class="chip ${Draft[key] === p.id ? 'is-active' : ''}"
+        data-act="draft-pocket" data-key="${key}" data-v="${p.id}">
+        ${icon(p.icon, 15)}${U.escape(p.name)}
+      </button>`).join('')}
+    </div>
+  </div>`;
+
+  const dateRow = `<div class="field">
+    <label class="field__lb">Tanggal</label>
+    <div class="inline">
+      <button class="chip ${Draft.date === U.today() ? 'is-active' : ''}"
+        data-act="draft-date" data-v="today">Hari ini</button>
+      <button class="chip ${Draft.date === U.key(U.addDays(new Date(), -1)) ? 'is-active' : ''}"
+        data-act="draft-date" data-v="yesterday">Kemarin</button>
+      <input class="input" type="date" id="draft-date-input" value="${Draft.date}"
+        style="flex:1;min-width:130px">
+    </div>
+  </div>`;
+
+  return `${typeSwitch}${amountView}${quickAmt}
+    <div class="numpad">
+      ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n =>
+        `<button class="key" data-act="amt-key" data-v="${n}">${n}</button>`).join('')}
+      <button class="key key--fn" data-act="amt-key" data-v="000">000</button>
+      <button class="key" data-act="amt-key" data-v="0">0</button>
+      <button class="key key--fn" data-act="amt-back">${icon('backspace', 20)}</button>
+    </div>
+    <div class="divider"></div>
+    ${catGrid}
+    ${isTransfer ? pocketRow('Dari pocket', 'pocketId') + pocketRow('Ke pocket', 'toPocketId')
+                 : pocketRow('Pocket', 'pocketId')}
+    ${dateRow}
+    <div class="field">
+      <label class="field__lb">Catatan <span class="muted">(opsional)</span></label>
+      <input class="input" id="draft-note" placeholder="mis. makan siang warteg"
+        value="${U.escape(Draft.note)}">
+    </div>`;
+}
+
+function quickAddFoot() {
+  const ok = Draft.value() > 0 &&
+    (Draft.type !== 'transfer' || (Draft.pocketId && Draft.toPocketId && Draft.pocketId !== Draft.toPocketId));
+
+  return `<div class="btn-row">
+    ${Draft.editingId
+      ? `<button class="btn btn--danger" style="flex:0 0 56px" data-act="delete-tx"
+          data-v="${Draft.editingId}">${icon('trash', 19)}</button>` : ''}
+    <button class="btn btn--primary" data-act="save-tx" ${ok ? '' : 'disabled'}>
+      ${icon('check', 19)}${Draft.editingId ? 'Simpan perubahan' : 'Simpan'}
+    </button>
+  </div>`;
+}
+
+function bindQuickAdd(root) {
+  const dateInput = root.querySelector('#draft-date-input');
+  if (dateInput) dateInput.addEventListener('change', (e) => {
+    Draft.date = e.target.value || U.today();
+    Sheet.refresh();
+  });
+
+  const note = root.querySelector('#draft-note');
+  if (note) note.addEventListener('input', (e) => { Draft.note = e.target.value; });
+}
+
+function saveDraft() {
+  const amount = Draft.value();
+  if (amount <= 0) return;
+
+  if (Draft.type === 'transfer') {
+    if (!Draft.pocketId || !Draft.toPocketId || Draft.pocketId === Draft.toPocketId) {
+      toast('Pilih dua pocket yang berbeda', 'alert');
+      return;
+    }
+  }
+
+  const payload = {
+    type: Draft.type,
+    amount,
+    date: Draft.date,
+    note: Draft.note.trim(),
+    pocketId: Draft.pocketId,
+    toPocketId: Draft.type === 'transfer' ? Draft.toPocketId : null,
+    categoryId: Draft.type === 'transfer' ? null : Draft.categoryId,
+  };
+
+  if (Draft.editingId) {
+    Store.updateTx(Draft.editingId, payload);
+    toast('Transaksi diperbarui');
+  } else {
+    Store.addTx(payload);
+    toast(`${typeLabel(Draft.type)} ${App.money(amount)} tercatat`);
+  }
+
+  Sheet.close();
+  render();
+}
+
+/* ============================================================
+   Transfer shortcut (pre-set to transfer mode)
+   ============================================================ */
+
+function openTransfer() {
+  const pockets = Store.activePockets();
+  openQuickAdd({
+    type: 'transfer',
+    pocketId: pockets[0] ? pockets[0].id : null,
+    toPocketId: pockets[1] ? pockets[1].id : null,
+  });
+}
+
+/* ============================================================
+   Period picker
+   ============================================================ */
+
+function openPeriodSheet() {
+  Sheet.open({
+    title: 'Periode',
+    body() {
+      const groups = {};
+      for (const p of PRESETS) (groups[p.group] ||= []).push(p);
+
+      const sections = Object.entries(groups).map(([g, items]) => `
+        <div class="field">
+          <label class="field__lb">${g}</label>
+          <div class="wrap-gap">
+            ${items.map(p => `<button class="chip ${App.filter.preset === p.id ? 'is-active' : ''}"
+              data-act="set-preset" data-v="${p.id}">${p.label}</button>`).join('')}
+          </div>
+        </div>`).join('');
+
+      const custom = App.filter.preset === 'custom' ? `
+        <div class="divider"></div>
+        <div class="field">
+          <label class="field__lb">Dari tanggal</label>
+          <input class="input" type="date" id="cust-start" value="${App.filter.custom.start}">
+        </div>
+        <div class="field">
+          <label class="field__lb">Sampai tanggal</label>
+          <input class="input" type="date" id="cust-end" value="${App.filter.custom.end}">
+        </div>` : '';
+
+      const r = App.range();
+      return `${sections}${custom}
+        <div class="card" style="background:var(--surface-2);border:none;box-shadow:none">
+          <div class="tiny muted">Periode terpilih</div>
+          <b>${U.escape(U.fmtRange(r.start, r.end))}</b>
+          ${r.start ? `<div class="tiny muted" style="margin-top:2px">
+            ${U.daysBetween(r.start, r.end)} hari</div>` : ''}
+        </div>`;
+    },
+    foot: () => `<button class="btn btn--primary btn--block" data-act="sheet-close">Selesai</button>`,
+    onMount(root) {
+      const s = root.querySelector('#cust-start');
+      const e = root.querySelector('#cust-end');
+      if (s) s.addEventListener('change', ev => {
+        App.filter.custom.start = ev.target.value;
+        if (App.filter.custom.end < ev.target.value) App.filter.custom.end = ev.target.value;
+        Sheet.refresh(); render();
+      });
+      if (e) e.addEventListener('change', ev => {
+        App.filter.custom.end = ev.target.value;
+        if (App.filter.custom.start > ev.target.value) App.filter.custom.start = ev.target.value;
+        Sheet.refresh(); render();
+      });
+    },
+  });
+}
+
+/* ============================================================
+   Category / pocket multi-select filters
+   ============================================================ */
+
+/** Everything-in-one filter sheet, reachable from the topbar icon. */
+function openFilterSheet() {
+  Sheet.open({
+    title: 'Filter',
+    headAction: App.activeFilterCount()
+      ? `<button class="btn btn--sm btn--ghost" data-act="reset-filter">Reset</button>` : '',
+    body() {
+      const r = App.range();
+      const quick = ['today', 'thisWeek', 'thisMonth', 'lastMonth', 'last30', 'thisYear'];
+      const types = [['', 'Semua'], ['expense', 'Pengeluaran'], ['income', 'Pemasukan'], ['transfer', 'Transfer']];
+      const cur = App.filter.types[0] || '';
+
+      return `
+        <div class="field">
+          <label class="field__lb">Periode</label>
+          <div class="wrap-gap" style="margin-bottom:10px">
+            ${quick.map(id => `<button class="chip ${App.filter.preset === id ? 'is-active' : ''}"
+              data-act="set-preset" data-v="${id}">${presetLabel(id)}</button>`).join('')}
+          </div>
+          <button class="btn btn--soft btn--sm btn--block" data-act="open-period">
+            ${icon('calendar', 16)}Semua pilihan periode &amp; rentang kustom</button>
+          <p class="tiny muted" style="margin:8px 2px 0">
+            Terpilih: <b>${U.escape(U.fmtRange(r.start, r.end))}</b></p>
+        </div>
+
+        <div class="field">
+          <label class="field__lb">Jenis transaksi</label>
+          <div class="segmented">
+            ${types.map(([val, l]) => `<button data-act="set-type" data-v="${val}"
+              class="${cur === val ? 'is-active' : ''}">${l}</button>`).join('')}
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field__lb">Pengelompokan</label>
+          <div class="rows">
+            <button class="row" data-act="open-cat-filter">
+              <span class="bubble row__ico">${icon('layers', 18)}</span>
+              <span class="row__mid"><span class="row__t">Kategori</span>
+                <span class="row__s">${App.filter.categoryIds.length
+                  ? `${App.filter.categoryIds.length} dipilih` : 'Semua kategori'}</span></span>
+              <span class="row__r">${icon('chevron-right', 16)}</span>
+            </button>
+            <button class="row" data-act="open-pocket-filter">
+              <span class="bubble row__ico">${icon('wallet', 18)}</span>
+              <span class="row__mid"><span class="row__t">Pocket</span>
+                <span class="row__s">${App.filter.pocketIds.length
+                  ? `${App.filter.pocketIds.length} dipilih` : 'Semua pocket'}</span></span>
+              <span class="row__r">${icon('chevron-right', 16)}</span>
+            </button>
+          </div>
+        </div>`;
+    },
+    foot: () => `<button class="btn btn--primary btn--block" data-act="sheet-close">Selesai</button>`,
+  });
+}
+
+function openCategoryFilter() {
+  Sheet.open({
+    title: 'Filter kategori',
+    headAction: `<button class="btn btn--sm btn--ghost" data-act="clear-cat-filter">Bersihkan</button>`,
+    body() {
+      const block = (type, label) => {
+        const cats = Store.categoriesOf(type);
+        if (!cats.length) return '';
+        return `<div class="field">
+          <label class="field__lb">${label}</label>
+          <div class="catgrid">
+            ${cats.map(c => `<button class="catcell ${App.filter.categoryIds.includes(c.id) ? 'is-active' : ''}"
+              data-act="toggle-cat-filter" data-v="${c.id}">
+              ${iconBubble(c.icon, c.color, 42, 21, 'catcell__ico')}
+              <span class="catcell__lb">${U.escape(c.name)}</span>
+            </button>`).join('')}
+          </div>
+        </div>`;
+      };
+      return `<p class="tiny muted" style="margin-top:0">
+          Grafik, ringkasan, dan daftar transaksi akan mengikuti pilihan ini.</p>
+        ${block('expense', 'Pengeluaran')}${block('income', 'Pemasukan')}`;
+    },
+    foot: () => `<button class="btn btn--primary btn--block" data-act="sheet-close">
+      Terapkan${App.filter.categoryIds.length ? ` (${App.filter.categoryIds.length})` : ''}</button>`,
+  });
+}
+
+function openPocketFilter() {
+  Sheet.open({
+    title: 'Filter pocket',
+    headAction: `<button class="btn btn--sm btn--ghost" data-act="clear-pocket-filter">Bersihkan</button>`,
+    body() {
+      return `<p class="tiny muted" style="margin-top:0">
+          Pilih satu atau beberapa pocket untuk mempersempit laporan.</p>
+        <div class="rows">
+          ${Store.activePockets().map(p => {
+            const on = App.filter.pocketIds.includes(p.id);
+            return `<button class="row" data-act="toggle-pocket-filter" data-v="${p.id}">
+              ${iconBubble(p.icon, p.color, 34, 18, 'row__ico')}
+              <span class="row__mid"><span class="row__t">${U.escape(p.name)}</span>
+                <span class="row__s">${App.money(Store.pocketBalance(p.id))}</span></span>
+              <span class="row__r">${on ? `<span style="color:var(--accent)">${icon('check', 18)}</span>`
+                : `<span style="opacity:.3">${icon('plus', 18)}</span>`}</span>
+            </button>`;
+          }).join('')}
+        </div>`;
+    },
+    foot: () => `<button class="btn btn--primary btn--block" data-act="sheet-close">
+      Terapkan${App.filter.pocketIds.length ? ` (${App.filter.pocketIds.length})` : ''}</button>`,
+  });
+}
+
+/* ============================================================
+   Category editor
+   ============================================================ */
+
+const CatDraft = { id: null, name: '', icon: 'more-horizontal', color: PALETTE[0], type: 'expense', iconQuery: '' };
+
+function openCategoryEditor(id, type) {
+  if (id) {
+    const c = Store.category(id);
+    if (!c) return;
+    Object.assign(CatDraft, { id: c.id, name: c.name, icon: c.icon, color: c.color, type: c.type, iconQuery: '' });
+  } else {
+    Object.assign(CatDraft, {
+      id: null, name: '', icon: type === 'income' ? 'banknote' : 'more-horizontal',
+      color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
+      type: type || 'expense', iconQuery: '',
+    });
+  }
+
+  Sheet.open({
+    title: CatDraft.id ? 'Ubah kategori' : 'Kategori baru',
+    body: catEditorBody,
+    foot: catEditorFoot,
+    onMount(root) {
+      const nm = root.querySelector('#cat-name');
+      if (nm) {
+        nm.addEventListener('input', e => {
+          CatDraft.name = e.target.value;
+          const prev = root.querySelector('#cat-preview-name');
+          if (prev) prev.textContent = CatDraft.name || 'Nama kategori';
+          const btn = root.querySelector('[data-act="save-category"]');
+          if (btn) btn.disabled = !CatDraft.name.trim();
+        });
+        if (!CatDraft.id) setTimeout(() => nm.focus(), 260);
+      }
+      const q = root.querySelector('#icon-search');
+      if (q) q.addEventListener('input', e => {
+        CatDraft.iconQuery = e.target.value.toLowerCase();
+        paintIconGrid(root);
+      });
+    },
+  });
+}
+
+function catEditorBody() {
+  const archived = CatDraft.id ? (Store.category(CatDraft.id) || {}).archived : false;
+  const used = CatDraft.id ? Store.categoryUsage(CatDraft.id) : 0;
+
+  return `
+    <div class="inline" style="margin-bottom:16px">
+      ${iconBubble(CatDraft.icon, CatDraft.color, 52, 26)}
+      <div>
+        <div style="font-weight:620" id="cat-preview-name">${U.escape(CatDraft.name || 'Nama kategori')}</div>
+        <div class="tiny muted">${CatDraft.type === 'expense' ? 'Pengeluaran' : 'Pemasukan'}
+          ${used ? ` · ${used} transaksi` : ''}${archived ? ' · diarsipkan' : ''}</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field__lb">Nama</label>
+      <input class="input" id="cat-name" value="${U.escape(CatDraft.name)}"
+        placeholder="mis. Nongkrong, Servis Motor, Bonus Proyek" maxlength="32">
+    </div>
+
+    ${CatDraft.id ? '' : `<div class="field">
+      <label class="field__lb">Jenis</label>
+      <div class="segmented">
+        ${[['expense', 'Pengeluaran'], ['income', 'Pemasukan']].map(([v, l]) =>
+          `<button data-act="cat-type" data-v="${v}" data-kind="${v}"
+            class="${CatDraft.type === v ? 'is-active' : ''}">${l}</button>`).join('')}
+      </div>
+    </div>`}
+
+    <div class="field">
+      <label class="field__lb">Warna</label>
+      <div class="swatches">
+        ${PALETTE.map(c => `<button class="swatch ${CatDraft.color === c ? 'is-active' : ''}"
+          style="background:${c}" data-act="cat-color" data-v="${c}"></button>`).join('')}
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field__lb">Ikon</label>
+      <input class="input" id="icon-search" placeholder="Cari ikon — mis. kopi, bensin, gaji…"
+        value="${U.escape(CatDraft.iconQuery)}" style="margin-bottom:10px">
+      <div id="icon-grid">${iconGridHtml()}</div>
+    </div>`;
+}
+
+function iconGridHtml() {
+  const q = CatDraft.iconQuery.trim();
+  const matches = (n, groupLabel) => !q ||
+    n.includes(q) ||
+    (ICON_LABELS[n] || '').includes(q) ||
+    groupLabel.toLowerCase().includes(q);
+
+  return ICON_GROUPS.map(g => {
+    const names = g.names.filter(n => matches(n, g.label));
+    if (!names.length) return '';
+    return `<div style="margin-bottom:12px">
+      <div class="tiny muted" style="margin-bottom:6px">${g.label}</div>
+      <div class="icongrid">
+        ${names.map(n => `<button class="iconcell ${CatDraft.icon === n ? 'is-active' : ''}"
+          data-act="cat-icon" data-v="${n}" title="${U.escape(iconLabel(n))}"
+          aria-label="${U.escape(iconLabel(n))}">${icon(n, 21)}</button>`).join('')}
+      </div>
+    </div>`;
+  }).join('') || `<p class="tiny muted">Ikon tidak ditemukan. Coba kata lain, mis. "bensin" atau "gaji".</p>`;
+}
+
+function paintIconGrid(root) {
+  const g = root.querySelector('#icon-grid');
+  if (g) g.innerHTML = iconGridHtml();
+}
+
+function catEditorFoot() {
+  const exists = !!CatDraft.id;
+  const cat = exists ? Store.category(CatDraft.id) : null;
+  return `<div class="btn-row">
+    ${exists ? `<button class="btn btn--danger" style="flex:0 0 56px"
+        data-act="delete-category" data-v="${CatDraft.id}">${icon('trash', 19)}</button>` : ''}
+    ${exists && cat && cat.archived ? `<button class="btn btn--soft" data-act="unarchive-category"
+        data-v="${CatDraft.id}">Aktifkan</button>` : ''}
+    <button class="btn btn--primary" data-act="save-category"
+      ${CatDraft.name.trim() ? '' : 'disabled'}>${icon('check', 19)}Simpan</button>
+  </div>`;
+}
+
+function saveCategory() {
+  const name = CatDraft.name.trim();
+  if (!name) return;
+  if (CatDraft.id) {
+    Store.updateCategory(CatDraft.id, { name, icon: CatDraft.icon, color: CatDraft.color });
+    toast('Kategori diperbarui');
+  } else {
+    const c = Store.addCategory({
+      name, icon: CatDraft.icon, color: CatDraft.color, type: CatDraft.type,
+    });
+    // if we came from the quick-add sheet, select the fresh category right away
+    if (Sheet.stack.length > 1 && Draft.type === c.type) Draft.categoryId = c.id;
+    toast('Kategori ditambahkan');
+  }
+  Sheet.back();
+  Sheet.refresh();
+  render();
+}
+
+/* ============================================================
+   Pocket editor
+   ============================================================ */
+
+const PocketDraft = { id: null, name: '', icon: 'wallet', color: PALETTE[6], kind: 'cash', initial: '', target: '' };
+
+function openPocketEditor(id) {
+  if (id) {
+    const p = Store.pocket(id);
+    if (!p) return;
+    Object.assign(PocketDraft, {
+      id: p.id, name: p.name, icon: p.icon, color: p.color, kind: p.kind,
+      initial: String(p.initial || ''), target: String(p.target || ''),
+    });
+  } else {
+    Object.assign(PocketDraft, {
+      id: null, name: '', icon: 'wallet',
+      color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
+      kind: 'cash', initial: '', target: '',
+    });
+  }
+
+  Sheet.open({
+    title: PocketDraft.id ? 'Ubah pocket' : 'Pocket baru',
+    body: pocketEditorBody,
+    foot: pocketEditorFoot,
+    onMount(root) {
+      const bind = (sel, key, num) => {
+        const el = root.querySelector(sel);
+        if (!el) return;
+        el.addEventListener('input', e => {
+          PocketDraft[key] = num ? e.target.value.replace(/[^\d-]/g, '') : e.target.value;
+          if (key === 'name') {
+            const prev = root.querySelector('#pocket-preview-name');
+            if (prev) prev.textContent = PocketDraft.name || 'Nama pocket';
+            const btn = root.querySelector('[data-act="save-pocket"]');
+            if (btn) btn.disabled = !PocketDraft.name.trim();
+          }
+        });
+      };
+      bind('#pk-name', 'name');
+      bind('#pk-initial', 'initial', true);
+      bind('#pk-target', 'target', true);
+      const nm = root.querySelector('#pk-name');
+      if (nm && !PocketDraft.id) setTimeout(() => nm.focus(), 260);
+    },
+  });
+}
+
+function pocketEditorBody() {
+  const isDefault = PocketDraft.id && Store.data.settings.defaultPocketId === PocketDraft.id;
+  const bal = PocketDraft.id ? Store.pocketBalance(PocketDraft.id) : 0;
+
+  return `
+    <div class="inline" style="margin-bottom:16px">
+      ${iconBubble(PocketDraft.icon, PocketDraft.color, 52, 26)}
+      <div>
+        <div style="font-weight:620" id="pocket-preview-name">${U.escape(PocketDraft.name || 'Nama pocket')}</div>
+        <div class="tiny muted">${PocketDraft.id ? `Saldo saat ini ${App.money(bal)}` : 'Pocket baru'}</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field__lb">Nama</label>
+      <input class="input" id="pk-name" value="${U.escape(PocketDraft.name)}"
+        placeholder="mis. BCA, GoPay, Dana Darurat" maxlength="28">
+    </div>
+
+    <div class="field">
+      <label class="field__lb">Jenis</label>
+      <select class="select" data-act="pk-kind">
+        ${Object.entries(POCKET_KIND).map(([v, l]) =>
+          `<option value="${v}" ${PocketDraft.kind === v ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field__lb">Saldo awal</label>
+      <input class="input num" id="pk-initial" inputmode="numeric" value="${U.escape(PocketDraft.initial)}"
+        placeholder="0">
+      <p class="tiny muted" style="margin:6px 2px 0">
+        Isi dengan saldo yang sudah ada sekarang, sebelum kamu mulai mencatat.</p>
+    </div>
+
+    <div class="field">
+      <label class="field__lb">Target tabungan <span class="muted">(opsional)</span></label>
+      <input class="input num" id="pk-target" inputmode="numeric" value="${U.escape(PocketDraft.target)}"
+        placeholder="0">
+    </div>
+
+    <div class="field">
+      <label class="field__lb">Warna</label>
+      <div class="swatches">
+        ${PALETTE.map(c => `<button class="swatch ${PocketDraft.color === c ? 'is-active' : ''}"
+          style="background:${c}" data-act="pk-color" data-v="${c}"></button>`).join('')}
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field__lb">Ikon</label>
+      <div class="icongrid">
+        ${POCKET_ICONS.map(n => `<button class="iconcell ${PocketDraft.icon === n ? 'is-active' : ''}"
+          data-act="pk-icon" data-v="${n}" title="${U.escape(iconLabel(n))}"
+          aria-label="${U.escape(iconLabel(n))}">${icon(n, 21)}</button>`).join('')}
+      </div>
+    </div>
+
+    ${PocketDraft.id && !isDefault ? `
+      <button class="btn btn--soft btn--block" data-act="make-default" data-v="${PocketDraft.id}">
+        ${icon('star', 18)}Jadikan pocket default</button>` : ''}
+    ${isDefault ? `<p class="tiny muted" style="text-align:center">
+      ${icon('star', 13)} Ini pocket default untuk transaksi baru.</p>` : ''}`;
+}
+
+function pocketEditorFoot() {
+  const p = PocketDraft.id ? Store.pocket(PocketDraft.id) : null;
+  return `<div class="btn-row">
+    ${PocketDraft.id ? `<button class="btn btn--danger" style="flex:0 0 56px"
+      data-act="delete-pocket" data-v="${PocketDraft.id}">${icon('trash', 19)}</button>` : ''}
+    ${p && p.archived ? `<button class="btn btn--soft" data-act="unarchive-pocket"
+      data-v="${PocketDraft.id}">Aktifkan</button>` : ''}
+    <button class="btn btn--primary" data-act="save-pocket"
+      ${PocketDraft.name.trim() ? '' : 'disabled'}>${icon('check', 19)}Simpan</button>
+  </div>`;
+}
+
+function savePocket() {
+  const name = PocketDraft.name.trim();
+  if (!name) return;
+  const payload = {
+    name, icon: PocketDraft.icon, color: PocketDraft.color, kind: PocketDraft.kind,
+    initial: Number(PocketDraft.initial || 0),
+    target: Number(PocketDraft.target || 0),
+  };
+  if (PocketDraft.id) {
+    Store.updatePocket(PocketDraft.id, payload);
+    toast('Pocket diperbarui');
+  } else {
+    Store.addPocket(payload);
+    toast('Pocket ditambahkan');
+  }
+  Sheet.close();
+  render();
+}
+
+/* ============================================================
+   Quick-shortcut picker
+   ============================================================ */
+
+function openQuickPicker() {
+  Sheet.open({
+    title: 'Pintasan catat cepat',
+    headAction: `<button class="btn btn--sm btn--ghost" data-act="clear-quick">Otomatis</button>`,
+    body() {
+      const sel = Store.data.settings.quickCategoryIds;
+      const block = (type, label) => `<div class="field">
+        <label class="field__lb">${label}</label>
+        <div class="catgrid">
+          ${Store.categoriesOf(type).map(c => `
+            <button class="catcell ${sel.includes(c.id) ? 'is-active' : ''}"
+              data-act="toggle-quick" data-v="${c.id}">
+              ${iconBubble(c.icon, c.color, 42, 21, 'catcell__ico')}
+              <span class="catcell__lb">${U.escape(c.name)}</span>
+            </button>`).join('')}
+        </div></div>`;
+      return `<p class="tiny muted" style="margin-top:0">
+          Pilih sampai 7 kategori yang muncul di beranda. Kosongkan untuk membiarkan
+          aplikasi memilih otomatis dari yang paling sering kamu pakai.
+          <b>${sel.length}/7 dipilih.</b></p>
+        ${block('expense', 'Pengeluaran')}${block('income', 'Pemasukan')}`;
+    },
+    foot: () => `<button class="btn btn--primary btn--block" data-act="sheet-close">Selesai</button>`,
+  });
+}
+
+/* ============================================================
+   Data: export / import
+   ============================================================ */
+
+function doExport() {
+  const text = Store.exportText();
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = Store.exportName();
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+  // A local date key, matching how every other date in the app is stored.
+  Store.setSetting('lastBackupAt', U.today());
+  toast('File backup diunduh');
+  render();
+}
+
+function openImportSheet() {
+  let picked = null;   // { name, text }
+  let mode = 'replace';
+
+  Sheet.open({
+    title: 'Import data',
+    body() {
+      return `<p class="tiny muted" style="margin-top:0">
+          Pilih file backup <b>.json</b> hasil export — misalnya yang kamu unduh dari Google Drive.</p>
+
+        <button class="btn btn--soft btn--block" data-act="pick-file" style="margin-bottom:14px">
+          ${icon('folder', 18)}${picked ? 'Ganti file' : 'Pilih file backup'}</button>
+        <input type="file" id="import-file" accept="application/json,.json" class="hidden">
+
+        ${picked ? `<div class="card" style="background:var(--surface-2);border:none;box-shadow:none;margin-bottom:14px">
+          <div class="inline">${icon('save', 18)}
+            <div><b class="tiny">${U.escape(picked.name)}</b>
+            <div class="tiny muted">${picked.summary}</div></div>
+          </div>
+          ${picked.owner ? `<div class="tiny" style="margin-top:8px;color:${
+            picked.owner.toLowerCase() === (Store.data.settings.profileName || '').toLowerCase()
+              ? 'var(--text-2)' : 'var(--warn)'}">
+            ${icon('info', 13)} Berkas ini milik profil <b>${U.escape(picked.owner)}</b>.</div>` : ''}
+        </div>` : ''}
+
+        <div class="field">
+          <label class="field__lb">Cara menggabungkan</label>
+          <div class="segmented">
+            <button data-act="import-mode" data-v="replace"
+              class="${mode === 'replace' ? 'is-active' : ''}">Ganti total</button>
+            <button data-act="import-mode" data-v="merge"
+              class="${mode === 'merge' ? 'is-active' : ''}">Gabungkan</button>
+          </div>
+          <p class="tiny muted" style="margin:8px 2px 0">
+            ${mode === 'replace'
+              ? 'Semua data di perangkat ini akan diganti isi file. Cocok saat pindah HP atau memulihkan backup.'
+              : 'Data yang sudah ada dipertahankan; transaksi, kategori, dan pocket baru dari file akan ditambahkan.'}
+          </p>
+        </div>`;
+    },
+    foot: () => `<button class="btn btn--primary btn--block" data-act="do-import"
+      ${picked ? '' : 'disabled'}>${icon('upload', 18)}Import sekarang</button>`,
+    onMount(root) {
+      root.querySelector('#import-file').addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const probe = JSON.parse(text);
+          const owner = (probe.profile || (probe.settings || {}).profileName || '').trim();
+          picked = {
+            name: file.name,
+            text,
+            owner,
+            summary: `${(probe.transactions || []).length} transaksi · ` +
+                     `${(probe.pockets || []).length} pocket · ` +
+                     `${(probe.categories || []).length} kategori`,
+          };
+          Sheet.refresh();
+        } catch (err) {
+          toast('File tidak bisa dibaca', 'alert');
+        }
+      });
+    },
+    /* exposed so the delegated handler can reach them */
+    api: {
+      setMode(v) { mode = v; Sheet.refresh(); },
+      run() {
+        if (!picked) return;
+        try {
+          const res = Store.importText(picked.text, mode);
+          Sheet.close();
+          App.filter.categoryIds = [];
+          App.filter.pocketIds = [];
+          render();
+          toast(res.mode === 'replace'
+            ? `Data dipulihkan · ${res.transactions} transaksi`
+            : `Digabungkan · +${res.transactions} transaksi`);
+        } catch (err) {
+          toast(err.message || 'Import gagal', 'alert');
+        }
+      },
+    },
+  });
+}
+
+/* ============================================================
+   Small prompts
+   ============================================================ */
+
+/** One small sheet for any single-line text setting. */
+function openTextSheet({ title, label, hint, value, placeholder = '', maxLength = 40, onSave }) {
+  let val = value;
+  Sheet.open({
+    title,
+    body: () => `<div class="field">
+        <label class="field__lb">${label}</label>
+        <input class="input" id="text-value" value="${U.escape(val)}"
+          maxlength="${maxLength}" placeholder="${U.escape(placeholder)}">
+      </div>
+      <p class="tiny muted">${hint}</p>`,
+    foot: () => `<button class="btn btn--primary btn--block" data-act="save-text">Simpan</button>`,
+    onMount(root) {
+      const el = root.querySelector('#text-value');
+      el.addEventListener('input', (e) => { val = e.target.value; });
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); onSave(val); }
+      });
+      setTimeout(() => el.focus(), 250);
+    },
+    api: { save: () => onSave(val) },
+  });
+}
+
+function openSymbolSheet() {
+  openTextSheet({
+    title: 'Simbol mata uang',
+    label: 'Simbol',
+    value: Store.data.settings.currencySymbol,
+    placeholder: 'Rp',
+    maxLength: 5,
+    hint: 'Ditampilkan di depan setiap nominal, mis. <b>Rp 25.000</b>.',
+    onSave(v) {
+      Store.setSetting('currencySymbol', v.trim() || 'Rp');
+      Sheet.close();
+      render();
+      toast('Simbol diperbarui');
+    },
+  });
+}
+
+function openProfileSheet() {
+  openTextSheet({
+    title: 'Nama profil',
+    label: 'Nama',
+    value: Store.data.settings.profileName,
+    placeholder: 'mis. Bagas',
+    maxLength: 24,
+    hint: 'Dipakai untuk menamai berkas backup, mis. <b>aturinduit-bagas-2026-07-28.json</b>. ' +
+          'Berguna kalau ada dua orang memakai aplikasi ini, supaya berkas kalian tidak tertukar ' +
+          'saat di-import. Tidak memengaruhi datamu sama sekali.',
+    onSave(v) {
+      Store.setSetting('profileName', v.trim());
+      Sheet.close();
+      render();
+      toast('Nama profil disimpan');
+    },
+  });
+}
+
+function openConfirm({ title, message, confirmLabel = 'Ya, lanjutkan', danger = true, onConfirm }) {
+  Sheet.open({
+    title,
+    body: () => `<p style="margin:4px 0 8px">${message}</p>`,
+    foot: () => `<div class="btn-row">
+      <button class="btn btn--ghost" data-act="sheet-close">Batal</button>
+      <button class="btn ${danger ? 'btn--danger' : 'btn--primary'}" data-act="confirm-yes">
+        ${U.escape(confirmLabel)}</button>
+    </div>`,
+    onConfirm,
+  });
+}
+
+  </script>
+  <script>
+/* ============================================================
+   Main — one delegated listener drives the whole app.
+   ============================================================ */
+
+/* ---------- helpers ---------- */
+
+function closest(el, sel) { return el && el.closest ? el.closest(sel) : null; }
+
+function setChartNote(id, text) {
+  App.chartNote = text;
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+/* ---------- click routing ---------- */
+
+document.addEventListener('click', (ev) => {
+  const t = ev.target;
+
+  /* --- navigation --- */
+  const nav = closest(t, '[data-nav]');
+  if (nav) { go(nav.dataset.nav); return; }
+
+  /* --- entity taps --- */
+  const txBtn = closest(t, '[data-tx]');
+  if (txBtn) { openEditTx(txBtn.dataset.tx); return; }
+
+  const pocketBtn = closest(t, '[data-pocket]');
+  if (pocketBtn) { openPocketEditor(pocketBtn.dataset.pocket); return; }
+
+  const catBtn = closest(t, '[data-category]');
+  if (catBtn) { openCategoryEditor(catBtn.dataset.category); return; }
+
+  const quickBtn = closest(t, '[data-quick]');
+  if (quickBtn) {
+    const c = Store.category(quickBtn.dataset.quick);
+    if (c) openQuickAdd({ type: c.type, categoryId: c.id });
+    return;
+  }
+
+  /* --- drill into a category from any chart --- */
+  const jump = closest(t, '[data-cat-jump]');
+  if (jump) {
+    const id = jump.dataset.catJump;
+    App.filter.categoryIds = App.filter.categoryIds.includes(id) ? [] : [id];
+    go('transactions');
+    return;
+  }
+
+  /* --- chart read-outs --- */
+  const bucket = closest(t, '[data-bucket]');
+  if (bucket) {
+    const b = (App._buckets || [])[+bucket.dataset.bucket];
+    if (b) setChartNote('note-trend',
+      `${U.fmtRange(b.start, b.end)} · masuk ${App.money(b.values.income)} · keluar ${App.money(b.values.expense)}`);
+    return;
+  }
+
+  const point = closest(t, '[data-point]');
+  if (point) {
+    const p = (App._cum || [])[+point.dataset.point];
+    if (p) setChartNote('note-area', `${p.label} · akumulasi ${App.money(p.value, { sign: true })}`);
+    return;
+  }
+
+  const slice = closest(t, '[data-slice]');
+  if (slice) {
+    const item = (App._donut || [])[+slice.dataset.slice];
+    if (item && item.id !== '_rest') {
+      App.filter.categoryIds = [item.id];
+      go('transactions');
+    }
+    return;
+  }
+
+  /* --- actions --- */
+  const btn = closest(t, '[data-act]');
+  if (!btn) return;
+  const act = btn.dataset.act;
+  const v = btn.dataset.v;
+
+  switch (act) {
+
+    /* ---- sheet plumbing ---- */
+    case 'sheet-close': Sheet.close(); break;
+    case 'sheet-back':  Sheet.back(); break;
+    case 'confirm-yes': {
+      const cfg = Sheet.stack[Sheet.stack.length - 1];
+      Sheet.close();
+      if (cfg && cfg.onConfirm) cfg.onConfirm();
+      break;
+    }
+
+    /* ---- transaction draft ---- */
+    case 'quick-add': openQuickAdd(); break;
+    case 'transfer':  openTransfer(); break;
+
+    case 'draft-type':
+      Draft.type = v;
+      if (v === 'transfer') {
+        const ps = Store.activePockets();
+        if (!Draft.toPocketId || Draft.toPocketId === Draft.pocketId)
+          Draft.toPocketId = (ps.find(p => p.id !== Draft.pocketId) || {}).id || null;
+      } else {
+        const cats = Store.categoriesOf(v);
+        if (!cats.some(c => c.id === Draft.categoryId))
+          Draft.categoryId = cats[0] ? cats[0].id : null;
+      }
+      Sheet.refresh();
+      break;
+
+    case 'draft-cat':    Draft.categoryId = v; Sheet.refresh(); break;
+    case 'draft-pocket': Draft[btn.dataset.key] = v; Sheet.refresh(); break;
+    case 'draft-date':
+      Draft.date = v === 'today' ? U.today() : U.key(U.addDays(new Date(), -1));
+      Sheet.refresh();
+      break;
+
+    case 'amt-key':
+      if (Draft.amount.length < 13) {
+        Draft.amount = (Draft.amount === '' && v === '000') ? '' : (Draft.amount + v);
+        Draft.amount = Draft.amount.replace(/^0+(?=\d)/, '');
+      }
+      Sheet.refresh();
+      break;
+    case 'amt-back':  Draft.amount = Draft.amount.slice(0, -1); Sheet.refresh(); break;
+    case 'amt-clear': Draft.amount = ''; Sheet.refresh(); break;
+    case 'amt-add':
+      Draft.amount = String(Draft.value() + Number(v));
+      Sheet.refresh();
+      break;
+
+    case 'save-tx': saveDraft(); break;
+    case 'delete-tx':
+      openConfirm({
+        title: 'Hapus transaksi?',
+        message: 'Transaksi ini akan dihapus permanen dan saldo pocket akan menyesuaikan.',
+        confirmLabel: 'Hapus',
+        onConfirm() { Store.deleteTx(v); toast('Transaksi dihapus'); render(); },
+      });
+      break;
+
+    /* ---- filters ---- */
+    case 'open-filter':        openFilterSheet(); break;
+    case 'open-period':        openPeriodSheet(); break;
+    case 'open-cat-filter':    openCategoryFilter(); break;
+    case 'open-pocket-filter': openPocketFilter(); break;
+    case 'reset-filter':       App.resetFilters(); break;
+
+    case 'set-preset':
+      App.filter.preset = v;
+      Sheet.refresh();
+      render();
+      break;
+
+    case 'toggle-cat-filter': {
+      const set = new Set(App.filter.categoryIds);
+      set.has(v) ? set.delete(v) : set.add(v);
+      App.filter.categoryIds = [...set];
+      Sheet.refresh();
+      render();
+      break;
+    }
+    case 'clear-cat-filter': App.filter.categoryIds = []; Sheet.refresh(); render(); break;
+
+    case 'toggle-pocket-filter': {
+      const set = new Set(App.filter.pocketIds);
+      set.has(v) ? set.delete(v) : set.add(v);
+      App.filter.pocketIds = [...set];
+      Sheet.refresh();
+      render();
+      break;
+    }
+    case 'clear-pocket-filter': App.filter.pocketIds = []; Sheet.refresh(); render(); break;
+
+    case 'cycle-type': {
+      const order = [[], ['expense'], ['income'], ['transfer']];
+      const cur = JSON.stringify(App.filter.types);
+      const i = order.findIndex(o => JSON.stringify(o) === cur);
+      App.filter.types = order[(i + 1) % order.length];
+      Sheet.refresh();
+      render();
+      break;
+    }
+    case 'set-type': App.filter.types = v ? [v] : []; Sheet.refresh(); render(); break;
+
+    /* ---- dashboard toggles ---- */
+    case 'donut-type':   App.donutType = v; render(); break;
+    case 'compare-mode': App.compare = v; render(); break;
+
+    /* ---- quick shortcuts ---- */
+    case 'edit-quick': openQuickPicker(); break;
+    case 'toggle-quick': {
+      const list = Store.data.settings.quickCategoryIds.slice();
+      const i = list.indexOf(v);
+      if (i >= 0) list.splice(i, 1);
+      else if (list.length >= 7) { toast('Maksimal 7 pintasan', 'info'); break; }
+      else list.push(v);
+      Store.setSetting('quickCategoryIds', list);
+      Sheet.refresh();
+      render();
+      break;
+    }
+    case 'clear-quick':
+      Store.setSetting('quickCategoryIds', []);
+      Sheet.refresh();
+      render();
+      toast('Pintasan kembali otomatis');
+      break;
+
+    /* ---- categories ---- */
+    case 'new-category':  openCategoryEditor(null, v); break;
+    case 'cat-type':      CatDraft.type = v; Sheet.refresh(); break;
+    case 'cat-color':     CatDraft.color = v; Sheet.refresh(); break;
+    case 'cat-icon':      CatDraft.icon = v; Sheet.refresh(); break;
+    case 'save-category': saveCategory(); break;
+    case 'unarchive-category':
+      Store.updateCategory(v, { archived: false });
+      Sheet.close(); render(); toast('Kategori diaktifkan');
+      break;
+    case 'delete-category': {
+      const used = Store.categoryUsage(v);
+      openConfirm({
+        title: used ? 'Arsipkan kategori?' : 'Hapus kategori?',
+        message: used
+          ? `Kategori ini dipakai ${used} transaksi, jadi akan diarsipkan agar riwayat tetap utuh. Ia tidak akan muncul lagi saat mencatat.`
+          : 'Kategori ini belum dipakai dan akan dihapus permanen.',
+        confirmLabel: used ? 'Arsipkan' : 'Hapus',
+        onConfirm() {
+          const r = Store.removeCategory(v);
+          toast(r.archived ? 'Kategori diarsipkan' : 'Kategori dihapus');
+          render();
+        },
+      });
+      break;
+    }
+
+    /* ---- pockets ---- */
+    case 'new-pocket': openPocketEditor(null); break;
+    case 'pk-color':   PocketDraft.color = v; Sheet.refresh(); break;
+    case 'pk-icon':    PocketDraft.icon = v; Sheet.refresh(); break;
+    case 'save-pocket': savePocket(); break;
+    case 'make-default':
+      Store.setSetting('defaultPocketId', v);
+      Sheet.refresh(); render(); toast('Pocket default diperbarui');
+      break;
+    case 'unarchive-pocket':
+      Store.updatePocket(v, { archived: false });
+      Sheet.close(); render(); toast('Pocket diaktifkan');
+      break;
+    case 'delete-pocket': {
+      const used = Store.pocketUsage(v);
+      openConfirm({
+        title: used ? 'Arsipkan pocket?' : 'Hapus pocket?',
+        message: used
+          ? `Pocket ini terpakai di ${used} transaksi, jadi akan diarsipkan. Saldonya tidak lagi ikut dihitung di total.`
+          : 'Pocket ini belum dipakai dan akan dihapus permanen.',
+        confirmLabel: used ? 'Arsipkan' : 'Hapus',
+        onConfirm() {
+          const r = Store.removePocket(v);
+          if (r.error) { toast(r.error, 'alert'); return; }
+          Sheet.close();
+          toast(r.archived ? 'Pocket diarsipkan' : 'Pocket dihapus');
+          render();
+        },
+      });
+      break;
+    }
+
+    /* ---- data ---- */
+    case 'export': doExport(); break;
+    case 'import': openImportSheet(); break;
+    case 'pick-file': {
+      const input = document.getElementById('import-file');
+      if (input) input.click();
+      break;
+    }
+    case 'import-mode': {
+      const cfg = Sheet.stack[Sheet.stack.length - 1];
+      if (cfg && cfg.api) cfg.api.setMode(v);
+      break;
+    }
+    case 'do-import': {
+      const cfg = Sheet.stack[Sheet.stack.length - 1];
+      if (cfg && cfg.api) cfg.api.run();
+      break;
+    }
+
+    /* ---- appearance ---- */
+    case 'set-theme':
+      Store.setSetting('theme', v);
+      render();
+      break;
+    case 'toggle-hide':
+      Store.setSetting('hideAmounts', !Store.data.settings.hideAmounts);
+      render();
+      break;
+    case 'edit-symbol':  openSymbolSheet(); break;
+    case 'edit-profile': openProfileSheet(); break;
+    case 'save-text': {
+      const cfg = Sheet.stack[Sheet.stack.length - 1];
+      if (cfg && cfg.api) cfg.api.save();
+      break;
+    }
+
+    /* ---- backup reminder ---- */
+    case 'dismiss-nag':
+      Backup.dismissed = true;
+      render();
+      break;
+
+    /* ---- danger ---- */
+    case 'reset-all':
+      openConfirm({
+        title: 'Hapus semua data?',
+        message: 'Seluruh transaksi, pocket, dan kategori kustom akan hilang dari perangkat ini. ' +
+                 'Export dulu kalau kamu masih membutuhkannya.',
+        confirmLabel: 'Hapus semuanya',
+        onConfirm() {
+          Store.reset();
+          App.resetFilters();
+          go('dashboard');
+          toast('Data dikembalikan ke awal');
+        },
+      });
+      break;
+  }
+});
+
+/* ---------- inputs ---------- */
+
+document.addEventListener('input', (ev) => {
+  const el = ev.target;
+  if (el.dataset && el.dataset.act === 'search') {
+    App.filter.search = el.value;
+    // Re-rendering replaces the input, so put the caret and the scroll
+    // position back where the user had them.
+    const scroll = document.getElementById('view').scrollTop;
+    render();
+    const again = document.getElementById('search');
+    if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    document.getElementById('view').scrollTop = scroll;
+  }
+});
+
+document.addEventListener('change', (ev) => {
+  const el = ev.target;
+  if (el.dataset && el.dataset.act === 'pk-kind') {
+    PocketDraft.kind = el.value;
+  }
+});
+
+/* ---------- scrim + keyboard ---------- */
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('scrim').addEventListener('click', () => Sheet.close());
+});
+
+document.addEventListener('keydown', (ev) => {
+  if (!Sheet.stack.length) return;
+
+  if (ev.key === 'Escape') { Sheet.close(); return; }
+
+  // typing straight into the amount pad on desktop
+  const top = Sheet.stack[Sheet.stack.length - 1];
+  const isAmountSheet = top && (top.body === quickAddBody);
+  const inField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+  if (!isAmountSheet || inField) return;
+
+  if (/^[0-9]$/.test(ev.key)) {
+    ev.preventDefault();
+    if (Draft.amount.length < 13) {
+      Draft.amount = (Draft.amount + ev.key).replace(/^0+(?=\d)/, '');
+      Sheet.refresh();
+    }
+  } else if (ev.key === 'Backspace') {
+    ev.preventDefault();
+    Draft.amount = Draft.amount.slice(0, -1);
+    Sheet.refresh();
+  } else if (ev.key === 'Enter') {
+    ev.preventDefault();
+    saveDraft();
+  }
+});
+
+/* ---------- charts re-render when we cross the desktop breakpoint ---------- */
+
+window.matchMedia('(min-width: 900px)').addEventListener('change', () => {
+  if (Store.data) render();
+});
+
+/* ---------- theme follows the OS when set to auto ---------- */
+
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (Store.data && Store.data.settings.theme === 'auto') applyTheme();
+});
+
+/* ---------- boot ---------- */
+
+function boot() {
+  Store.init();
+  applyTheme();
+  render();
+  PWA.init();
+  // the storage check resolves a tick later; refresh the label if it's on screen
+  setTimeout(() => { if (App.page === 'more') render(); }, 600);
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+
+  </script>
+</body>
+</html>
