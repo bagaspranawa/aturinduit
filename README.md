@@ -307,3 +307,11 @@ mengaburkan seluruh halaman di belakangnya.
 dan sebuah tombol mempertahankan ukuran minimum otomatis sebesar lebar
 kontennya. Tanpa `min-width: 0` barisnya menolak menyusut dan labelnya tidak
 pernah ter-ellipsis.
+
+---
+
+## Lisensi
+
+[MIT](LICENSE) — bebas dipakai, diubah, dan disebarkan, termasuk untuk
+keperluan komersial, selama pemberitahuan hak cipta dan lisensinya tetap
+disertakan. Perangkat lunak ini diberikan apa adanya, tanpa jaminan.
