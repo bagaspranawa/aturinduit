@@ -17,7 +17,13 @@ const PWA = {
     PWA.requestPersistence();
   },
 
-  /** Added from script so a file:// run doesn't log a 404 for the manifest. */
+  /**
+   * Fallback only. The deployed build ships a static <link rel="manifest">
+   * because Chrome reads the initial HTML when deciding whether a site can be
+   * installed — a link added from script arrives too late and the install
+   * degrades to a bookmark shortcut. This covers serving the modular
+   * index.html directly, which has no static link of its own.
+   */
   linkManifest() {
     if (document.querySelector('link[rel="manifest"]')) return;
     const link = document.createElement('link');

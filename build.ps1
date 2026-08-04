@@ -60,8 +60,18 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 if (Test-Path $site) { Remove-Item $site -Recurse -Force }
 New-Item -ItemType Directory -Force $site | Out-Null
 
+# The deployed copy gets a STATIC manifest link. Injecting it from script at
+# runtime is too late for Chrome's install check, which reads the initial HTML;
+# without it Android mints a plain bookmark shortcut instead of a real app.
+# It stays out of AturinDuit.html on purpose: opened from file:// there is no
+# manifest.json beside it, and a static link would only produce a 404.
+$siteHtml = $html.Replace(
+  '</head>',
+  "  <link rel=""manifest"" href=""manifest.json"">`n</head>")
+if ($siteHtml -eq $html) { throw 'Could not inject the manifest link; no </head> found.' }
+
 # index.html so the site works at the bare folder URL
-[System.IO.File]::WriteAllText((Join-Path $site 'index.html'), $html, $utf8)
+[System.IO.File]::WriteAllText((Join-Path $site 'index.html'), $siteHtml, $utf8)
 
 Copy-Item (Join-Path $pwa 'manifest.json') $site
 Copy-Item (Join-Path $pwa 'icon-192.png')  $site

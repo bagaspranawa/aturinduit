@@ -12,7 +12,7 @@
    what makes a redeploy actually reach the phone.
    ============================================================ */
 
-const BUILD = '20260804-213103';
+const BUILD = '20260804-214155';
 const CACHE = `aturinduit-${BUILD}`;
 
 const PRECACHE = [
