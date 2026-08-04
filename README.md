@@ -1,5 +1,7 @@
 # AturinDuit
 
+**[Buka aplikasinya →](https://bagaspranawa.github.io/aturinduit/)**
+
 Pencatat keuangan harian yang ringan. Satu berkas HTML, tanpa server, tanpa
 database, tanpa akun. Dirancang untuk layar HP, tetap nyaman di browser desktop.
 
