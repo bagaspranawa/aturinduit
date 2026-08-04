@@ -28,8 +28,15 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE)
       // addAll is all-or-nothing; a single 404 would leave the app
       // uncached entirely, so each entry is allowed to fail on its own.
+      //
+      // `cache: 'reload'` matters more than it looks. cache.add() otherwise
+      // goes through the HTTP cache, so a stale copy of the page can be
+      // precached and then pinned here for as long as it stays fresh in
+      // that cache -- a redeploy would appear to do nothing.
       .then((cache) => Promise.all(
-        PRECACHE.map((url) => cache.add(url).catch(() => null))
+        PRECACHE.map((url) =>
+          cache.add(new Request(url, { cache: 'reload' })).catch(() => null)
+        )
       ))
       .then(() => self.skipWaiting())
   );
@@ -57,7 +64,10 @@ self.addEventListener('fetch', (event) => {
     caches.open(CACHE).then(async (cache) => {
       const cached = await cache.match(req, { ignoreSearch: true });
 
-      const network = fetch(req)
+      // 'no-cache' still lets the server answer 304, but never hands back a
+      // stale entry from the HTTP cache -- otherwise this revalidation would
+      // keep writing the same old bytes back into our cache forever.
+      const network = fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then((res) => {
           if (res && res.ok) cache.put(req, res.clone());
           return res;
